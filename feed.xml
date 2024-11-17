@@ -3,7 +3,7 @@
     <title>PHPMemo</title>
     <link href="https://enxas.github.io/php-memo/feed.xml" rel="self" />
     <link href="https://enxas.github.io/php-memo" />
-    <updated>2024-11-17T14:07:39+02:00</updated>
+    <updated>2024-11-17T21:32:57+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
@@ -16,6 +16,12 @@
         </author>
         <link href="https://enxas.github.io/php-memo/setting-up-laravel-dusk-for-laravel-sail-project-with-decoupled-vue-frontend-on-windows-2.html"/>
         <id>https://enxas.github.io/php-memo/setting-up-laravel-dusk-for-laravel-sail-project-with-decoupled-vue-frontend-on-windows-2.html</id>
+            <category term="WSL"/>
+            <category term="Vue"/>
+            <category term="Testing"/>
+            <category term="Laravel"/>
+            <category term="Dusk"/>
+            <category term="Docker"/>
 
         <updated>2024-11-17T14:06:12+02:00</updated>
             <summary>

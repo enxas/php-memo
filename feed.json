@@ -19,9 +19,15 @@
                 "name": "Enxas"
             },
             "tags": [
+                   "WSL",
+                   "Vue",
+                   "Testing",
+                   "Laravel",
+                   "Dusk",
+                   "Docker"
             ],
             "date_published": "2024-11-17T14:06:12+02:00",
-            "date_modified": "2024-11-17T14:07:39+02:00"
+            "date_modified": "2024-11-17T21:32:57+02:00"
         }
     ]
 }
