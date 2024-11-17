@@ -1,0 +1,27 @@
+{
+    "version": "https://jsonfeed.org/version/1",
+    "title": "PHPMemo",
+    "description": "",
+    "home_page_url": "https://enxas.github.io/php-memo",
+    "feed_url": "https://enxas.github.io/php-memo/feed.json",
+    "user_comment": "",
+    "author": {
+        "name": "Enxas"
+    },
+    "items": [
+        {
+            "id": "https://enxas.github.io/php-memo/setting-up-laravel-dusk-for-laravel-sail-project-with-decoupled-vue-frontend-on-windows-2.html",
+            "url": "https://enxas.github.io/php-memo/setting-up-laravel-dusk-for-laravel-sail-project-with-decoupled-vue-frontend-on-windows-2.html",
+            "title": "Setting up Laravel Dusk for Laravel Sail Project with Decoupled Vue Frontend on Windows",
+            "summary": "Requirements Laravel Sail project Vue project with Vite WSL Installation Steps 1. In your docker-compose.yml file, add these ports to the \"selenium\" section: ports: -&hellip;",
+            "content_html": "<div>\n<h2 class=\"font-600 text-xl font-bold\">Requirements</h2>\n<ul class=\"-mt-1 [li&gt;&amp;]:mt-2 list-disc space-y-2 pl-8\">\n<li class=\"whitespace-normal break-words\">Laravel Sail project</li>\n<li class=\"whitespace-normal break-words\">Vue project with Vite</li>\n<li class=\"whitespace-normal break-words\">WSL</li>\n</ul>\n</div>\n<div>\n<h2 class=\"font-600 text-xl font-bold\">Installation Steps<br><br></h2>\n1. In your <code class=\"bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]\">docker-compose.yml</code> file, add these ports to the \"selenium\" section:</div>\n<div>\n<pre class=\"language-yaml\"><code>ports:\n    - '${FORWARD_SELENIUM_PORT:-4444}:4444'\n    - '${FORWARD_SELENIUM_HEADFUL_PORT:-7900}:7900'</code></pre>\n</div>\n<div>2. Install Dusk:</div>\n<div>\n<pre class=\"language-bash\"><code>sail composer require --dev laravel/dusk</code></pre>\n<p>3. Create Dusk test and update configuration:</p>\n<pre class=\"language-bash\"><code>sail artisan dusk:install</code></pre>\n<p> 4. Create a test:</p>\n<pre class=\"language-bash\"><code>sail artisan dusk:make LoginTest</code></pre>\n<p> 5. Add this test method to verify functionality:</p>\n<pre class=\"language-php\"><code>public function testLogin(): void\n{\n    $this-&gt;browse(function (Browser $browser) {\n        $browser-&gt;visit('/')\n            -&gt;type('name', 'Josh')\n            -&gt;type('email', 'josh@example.com')\n            -&gt;type('password', 'hunter2')\n            -&gt;press('Login')\n            -&gt;waitForText('Logged In');\n    });\n}</code></pre>\n<h2 class=\"font-600 text-xl font-bold\">Configuration<br><br></h2>\n<p>Before running tests, ensure your Vue application running on Windows is accessible from within the Laravel Sail Docker container.<br><br></p>\n</div>\n<div>1. Host your Vue application with:\n<pre class=\"language-bash\"><code>npm run dev -- --host</code></pre>\n<p> 2. Create <code class=\"bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]\">.env.dusk</code> file in your Laravel application root with these values:</p>\n<pre class=\"language-bash\"><code>APP_URL=http://192.168.0.100:5174/\nDB_DATABASE=test_db\nLARAVEL_SAIL=1</code></pre>\n<p> (Replace IP address with your hosted Vue application IP address).</p>\n</div>\n<div>\n<h2 class=\"font-600 text-xl font-bold\">Running Tests<br><br></h2>\n<p class=\"whitespace-pre-wrap break-words\">Basic test execution:</p>\n</div>\n<div>\n<pre class=\"language-bash\"><code>sail dusk --env=.env.dusk</code></pre>\n</div>\n<div>\n<p>To view tests running visually:<br><br></p>\n1. Add to <code class=\"bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]\">.env.dusk</code>:</div>\n<div>\n<pre class=\"language-bash\"><code>DUSK_HEADLESS_DISABLED=1</code></pre>\n</div>\n<div>2. Visit <code class=\"bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]\">http://localhost:7900</code> (default password: 'secret')<br>\n<p class=\"whitespace-pre-wrap break-words\">Optionally, you can provide a custom PHPUnit configuration:</p>\n</div>\n<div>\n<pre class=\"language-bash\"><code>sail dusk --configuration phpunit.dusk.xml</code></pre>\n</div>\n<div>\n<div class=\"relative flex flex-col rounded-lg\">\n<div class=\"pointer-events-none sticky my-0.5 ml-0.5 flex items-center justify-end px-1.5 py-1 mix-blend-luminosity top-0\">\n<div class=\"from-bg-300/90 to-bg-300/70 pointer-events-auto rounded-md bg-gradient-to-b p-0.5 backdrop-blur-md\"> </div>\n</div>\n</div>\n</div>",
+            "author": {
+                "name": "Enxas"
+            },
+            "tags": [
+            ],
+            "date_published": "2024-11-17T14:06:12+02:00",
+            "date_modified": "2024-11-17T14:07:39+02:00"
+        }
+    ]
+}

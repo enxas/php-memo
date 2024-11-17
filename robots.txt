@@ -1,0 +1,3 @@
+User-agent: *
+Disallow:
+Sitemap: https://enxas.github.io/php-memo/sitemap.xml
