@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
     <title>PHPMemo</title>
-    <link href="https://enxas.github.io/php-memo/feed.xml" rel="self" />
-    <link href="https://enxas.github.io/php-memo" />
+    <link href="https://phpmemo.com/feed.xml" rel="self" />
+    <link href="https://phpmemo.com" />
     <updated>2024-11-17T21:32:57+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
-    <id>https://enxas.github.io/php-memo</id>
+    <id>https://phpmemo.com</id>
 
     <entry>
         <title>Setting up Laravel Dusk for Laravel Sail Project with Decoupled Vue Frontend on Windows</title>
         <author>
             <name>Enxas</name>
         </author>
-        <link href="https://enxas.github.io/php-memo/setting-up-laravel-dusk-for-laravel-sail-project-with-decoupled-vue-frontend-on-windows-2.html"/>
-        <id>https://enxas.github.io/php-memo/setting-up-laravel-dusk-for-laravel-sail-project-with-decoupled-vue-frontend-on-windows-2.html</id>
+        <link href="https://phpmemo.com/setting-up-laravel-dusk-for-laravel-sail-project-with-decoupled-vue-frontend-on-windows-2.html"/>
+        <id>https://phpmemo.com/setting-up-laravel-dusk-for-laravel-sail-project-with-decoupled-vue-frontend-on-windows-2.html</id>
             <category term="WSL"/>
             <category term="Vue"/>
             <category term="Testing"/>
