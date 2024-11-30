@@ -3,12 +3,71 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2024-11-17T21:32:57+02:00</updated>
+    <updated>2024-11-30T18:20:21+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
     <id>https://phpmemo.com</id>
 
+    <entry>
+        <title>Troubleshooting PHP JIT: A Definitive Guide to Enabling Performance Boost When Configuration Fails</title>
+        <author>
+            <name>Enxas</name>
+        </author>
+        <link href="https://phpmemo.com/troubleshooting-php-jit-a-definitive-guide-to-enabling-performance-boost-when-configuration-fails.html"/>
+        <id>https://phpmemo.com/troubleshooting-php-jit-a-definitive-guide-to-enabling-performance-boost-when-configuration-fails.html</id>
+            <category term="PHP"/>
+            <category term="Laravel"/>
+            <category term="JIT"/>
+            <category term="Docker"/>
+
+        <updated>2024-11-30T18:18:37+02:00</updated>
+            <summary>
+                <![CDATA[
+                    Many posts online suggest that enabling PHP JIT is as simple as adding some values to the php.ini file, but that's not exactly the case.
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <p>Many posts online suggest that enabling PHP JIT is as simple as adding some values to the <strong>php.ini</strong> file, but that's not exactly the case. Sometimes adding these configuration values doesn't seem to do anything. In this post, I'll show how to enable PHP JIT when nothing seems to work. I'll use a default Laravel Sail Docker container, but the idea is the same for any server running PHP.</p>
+<p>1. Check if a PHP extension is blocking JIT from loading. Type this command in the terminal to see JIT status:</p>
+<pre class="language-bash"><code>./vendor/bin/sail php -r "print_r(opcache_get_status(false)['jit']);"</code></pre>
+<p class="whitespace-pre-wrap break-words">If you see this warning, then a PHP extension is blocking JIT:</p>
+<blockquote>
+<p>PHP Warning: JIT is incompatible with third-party extensions that override zend_execute_ex(). JIT disabled. in Unknown on line 0.</p>
+</blockquote>
+<p>2. Disable problematic extensions. Laravel Sail Docker file installs many extensions, so we need to identify which ones are not compatible with PHP JIT. After disabling extensions one by one, I found that <strong>php8.3-pcov</strong> and <strong>php8.3-xdebug</strong> are problematic.</p>
+<p class="whitespace-pre-wrap break-words">To disable these extensions:</p>
+<ul class="-mt-1 [li&gt;&amp;]:mt-2 list-disc space-y-2 pl-8">
+<li class="whitespace-normal break-words">Ensure your .env file doesn't have <strong>SAIL_XDEBUG_MODE</strong> or any other environmental values that enable xDebug</li>
+<li class="whitespace-normal break-words">Add these values to your php.ini:</li>
+</ul>
+<pre class="language-bash"><code>pcov.enabled=0
+xdebug.mode=off</code></pre>
+<p>Also, add these values to enable JIT:</p>
+<pre class="language-bash"><code>[opcache]
+zend_extension=opcache.so
+opcache.enable=1
+opcache.enable_cli=1
+opcache.memory_consumption=128M
+opcache.interned_strings_buffer=8
+opcache.max_accelerated_files=4000
+opcache.revalidate_freq=60
+opcache.fast_shutdown=1
+opcache.jit_buffer_size=100M
+opcache.jit=tracing</code></pre>
+<p>3. <span style="color: var(--text-primary-color); font-family: var(--editor-font-family); font-size: inherit; font-weight: var(--font-weight-normal);">Restart If you're using Laravel Sail, rebuild your image with:</span></p>
+<ul class="-mt-1 [li&gt;&amp;]:mt-2 list-disc space-y-2 pl-8">
+<li class="whitespace-normal break-words"><code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">sail down</code></li>
+<li class="whitespace-normal break-words"><code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">sail build</code></li>
+<li class="whitespace-normal break-words"><code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">sail up -d</code></li>
+</ul>
+<p class="whitespace-pre-wrap break-words">Execute the command again to verify if JIT is properly enabled:</p>
+<pre class="language-bash"><code>./vendor/bin/sail php -r "print_r(opcache_get_status(false)['jit']);"</code></pre>
+<p>And that's it. Hopefully, your PHP JIT is now enabled and working.</p>
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>Setting up Laravel Dusk for Laravel Sail Project with Decoupled Vue Frontend on Windows</title>
         <author>
