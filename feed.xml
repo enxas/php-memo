@@ -3,7 +3,7 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2024-12-07T18:03:14+02:00</updated>
+    <updated>2024-12-07T18:14:30+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
@@ -23,12 +23,13 @@
         <updated>2024-12-07T17:59:40+02:00</updated>
             <summary>
                 <![CDATA[
-                    Pipeline Pattern The Laravel Pipeline pattern allows for a sequence of tasks or processes to be passed through a series of filters or pipes, each&hellip;
+                    There are numerous lesser-known patterns that can significantly enhance your system design. This blog post will delve into some of them. The Laravel Pipeline pattern&hellip;
                 ]]>
             </summary>
         <content type="html">
             <![CDATA[
-                <h2>Pipeline Pattern</h2>
+                <p>There are numerous lesser-known patterns that can significantly enhance your system design. This blog post will delve into some of them.</p>
+<h2>Pipeline Pattern</h2>
 <p>The Laravel Pipeline pattern allows for a sequence of tasks or processes to be passed through a series of filters or pipes, each with a single responsibility, enhancing flexibility, testability, and extensibility.</p>
 <pre class="language-php"><code>interface PipeInterface
 {
