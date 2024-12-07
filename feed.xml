@@ -3,12 +3,184 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2024-11-30T18:20:21+02:00</updated>
+    <updated>2024-12-07T18:03:14+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
     <id>https://phpmemo.com</id>
 
+    <entry>
+        <title>Lesser Known Design Patterns</title>
+        <author>
+            <name>Enxas</name>
+        </author>
+        <link href="https://phpmemo.com/lesser-known-design-patterns.html"/>
+        <id>https://phpmemo.com/lesser-known-design-patterns.html</id>
+            <category term="PHP"/>
+            <category term="Laravel"/>
+            <category term="Design Patterns"/>
+
+        <updated>2024-12-07T17:59:40+02:00</updated>
+            <summary>
+                <![CDATA[
+                    Pipeline Pattern The Laravel Pipeline pattern allows for a sequence of tasks or processes to be passed through a series of filters or pipes, each&hellip;
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <h2>Pipeline Pattern</h2>
+<p>The Laravel Pipeline pattern allows for a sequence of tasks or processes to be passed through a series of filters or pipes, each with a single responsibility, enhancing flexibility, testability, and extensibility.</p>
+<pre class="language-php"><code>interface PipeInterface
+{
+	public function handle($passable, Closure $next);
+}
+
+class VerifyUserAge implements PipeInterface
+{
+	public function handle($user, Closure $next)
+	{
+		// Skip this pipe if user is admin
+		if ($user-&gt;isAdmin()) {
+			return $next($user);
+		}
+
+		if ($user-&gt;age &lt; 18) {
+			throw new \Exception("User is not old enough");
+		}
+		return $next($user);
+	}
+}
+
+class ValidateUserEmail implements PipeInterface
+{
+	public function handle($user, Closure $next)
+	{
+		if (!filter_var($user-&gt;email, FILTER_VALIDATE_EMAIL)) {
+			throw new \Exception("Invalid email format");
+		}
+		return $next($user);
+	}
+}
+
+class NormalizeUserName implements PipeInterface
+{
+	public function handle($user, Closure $next)
+	{
+		$user-&gt;name = trim(ucwords(strtolower($user-&gt;name)));
+		return $next($user);
+	}
+}
+
+class ProcessByType implements PipeInterface
+{
+	public function __construct(private string $type) {}
+
+	public function handle($data, Closure $next)
+	{
+		match ($this-&gt;type) {
+			'premium' =&gt; $this-&gt;processPremiumUser($data),
+			'standard' =&gt; $this-&gt;processStandardUser($data),
+			default =&gt; null
+		};
+
+		return $next($data);
+	}
+}
+
+// User registration pipeline
+class UserRegistrationPipeline
+{
+	public function process($user)
+	{
+		$pipes = [
+			VerifyUserAge::class,
+			ValidateUserEmail::class,
+			NormalizeUserName::class,
+			new ProcessByType('premium'),
+		];
+
+		return app(\Illuminate\Pipeline\Pipeline::class)
+			-&gt;send($user)
+			-&gt;through($pipes)
+			-&gt;thenReturn();
+	}
+}
+
+// Usage example
+class UserController
+{
+	protected $pipeline;
+
+	public function __construct(UserRegistrationPipeline $pipeline)
+	{
+		$this-&gt;pipeline = $pipeline;
+	}
+
+	public function register(Request $request)
+	{
+		try {
+			$user = $this-&gt;pipeline-&gt;process(new User($request-&gt;all()));
+			// Save user if all pipes pass
+			$user-&gt;save();
+			return response()-&gt;json(['message' =&gt; 'User registered successfully']);
+		} catch (\Exception $e) {
+			return response()-&gt;json(['error' =&gt; $e-&gt;getMessage()], 400);
+		}
+	}
+}</code></pre>
+<h2>Tap pattern</h2>
+<p>The <code>tap</code> function takes two arguments: the first is the value to be passed, and the second is a closure. This closure receives the value, performs some operations on it, and then returns it.</p>
+<pre class="language-php"><code>// instead of doing this
+$article = Article::findOrFail($id);
+$article-&gt;incrementViews();
+$article-&gt;doSomething();
+
+return $article;
+
+
+// we can keep related functionality to one block of code
+return tap(Article::findOrFail($id), function (Article $article) {
+	$article-&gt;incrementViews();
+	$article-&gt;doSomething();
+});</code></pre>
+<p>The <code>update</code> method typically returns a boolean value. However, by using the <code>tap</code> function, the <code>update</code> method instead returns the User model that was tapped. This functionality of <code>tap</code> makes it simple to ensure any method on an object returns the object itself.</p>
+<pre class="language-php"><code>return tap($user)-&gt;update(['email' =&gt; $email]);</code></pre>
+<p><a href="https://medium.com/@tanmaymishu/the-anatomy-of-laravels-tap-function-ea239c9846ab" target="_blank" rel="noopener noreferrer">The anatomy of Laravel’s tap() function</a></p>
+<h2><span style="color: var(--text-primary-color); font-family: var(--editor-font-family); font-size: inherit;">Cache Refresh Ahead Pattern</span></h2>
+<p>This pattern ensures that the cache is updated before it expires, guaranteeing that users receive fresh data at all times. If the data is frequently accessed, it will always be cached.</p>
+<pre class="language-php"><code>function cacheWithRefreshAhead(string $key, int $ttl, float $refreshAheadTime, \Closure $callback): mixed
+{
+	$cachedData = Cache::get($key);
+
+	if ($cachedData) {
+		$expiresAt = Cache::get("$key:expires_at");
+
+		if ($expiresAt &amp;&amp; Carbon::now()-&gt;diffInMinutes($expiresAt) &lt;= $ttl * $refreshAheadTime) {
+			// dispatch a Job to update cache:
+			Cache::put($key, $callback(), $ttl);
+			Cache::put("$key:expires_at", Carbon::now()-&gt;addMinutes($ttl), $ttl);
+		}
+
+		return $cachedData;
+	}
+
+	// Cache miss, so cache it
+	$data = $callback();
+	// dispatch a Job to update cache:
+	Cache::put($key, $data, $ttl);
+	Cache::put("$key:expires_at", Carbon::now()-&gt;addMinutes($ttl), $ttl);
+
+	return $data;
+}
+
+// Usage example 
+$data = cacheWithRefreshAhead('some-key', 30, 5, function () {
+	// Retrieve fresh data
+	return ['data' =&gt; 123];
+});</code></pre>
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>Troubleshooting PHP JIT: A Definitive Guide to Enabling Performance Boost When Configuration Fails</title>
         <author>
