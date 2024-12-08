@@ -1,0 +1,403 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Most Popular Design Patterns - PHPMemo</title><meta name="description" content="Throughout my experience, these design patterns have stood out to me. It's useful for creating loose coupling between components, and enabling a one-to-many dependency between&hellip;"><meta name="generator" content="Publii Open-Source CMS for Static Site"><link rel="stylesheet" href="https://phpmemo.com/media/plugins/syntaxHighlighter/prism-black.css"><link rel="canonical" href="https://phpmemo.com/most-popular-design-patterns.html"><link rel="alternate" type="application/atom+xml" href="https://phpmemo.com/feed.xml"><link rel="alternate" type="application/json" href="https://phpmemo.com/feed.json"><meta property="og:title" content="Most Popular Design Patterns"><meta property="og:site_name" content="PHPMemo"><meta property="og:description" content="Throughout my experience, these design patterns have stood out to me. It's useful for creating loose coupling between components, and enabling a one-to-many dependency between&hellip;"><meta property="og:url" content="https://phpmemo.com/most-popular-design-patterns.html"><meta property="og:type" content="article"><link rel="preload" href="https://phpmemo.com/assets/dynamic/fonts/jetbrainsmono/jetbrainsmono.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="https://phpmemo.com/assets/dynamic/fonts/jetbrainsmono/jetbrainsmono-italic.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="https://phpmemo.com/assets/css/style.css?v=82007ae11cb9f2a56571c770331b13e7"><script type="application/ld+json">{"@context":"http://schema.org","@type":"Article","mainEntityOfPage":{"@type":"WebPage","@id":"https://phpmemo.com/most-popular-design-patterns.html"},"headline":"Most Popular Design Patterns","datePublished":"2024-12-08T16:42+02:00","dateModified":"2024-12-08T17:05+02:00","description":"Throughout my experience, these design patterns have stood out to me. It's useful for creating loose coupling between components, and enabling a one-to-many dependency between&hellip;","author":{"@type":"Person","name":"Enxas","url":"https://phpmemo.com/authors/enxas/"},"publisher":{"@type":"Organization","name":"Enxas"}}</script><noscript><style>img[loading] {
+                    opacity: 1;
+                }</style></noscript></head><body class="post-template"><div class="container container--center"><header class="header"><div class="header__logo"><a class="logo" href="https://phpmemo.com/">PHPMemo</a></div></header><main class="content"><article class="post"><header><h1 class="post__title">Most Popular Design Patterns</h1><div class="post__meta"><time datetime="2024-12-08T16:42" class="post__date">December 8, 2024 </time><span class="post__author"><a href="https://phpmemo.com/authors/enxas/" class="feed__author">Enxas</a></span></div><div class="post__tags"><a href="https://phpmemo.com/tags/design-patterns/" class="invert">Design Patterns</a> <a href="https://phpmemo.com/tags/php/" class="invert">PHP</a></div></header><div class="post__entry"><div><p>Throughout my experience, these design patterns have stood out to me.</p><h2>Observer Pattern</h2></div><p>It's useful for creating loose coupling between components, and enabling a one-to-many dependency between objects so that when one object changes state, all its dependents are notified and updated automatically without them needing to constantly poll for changes.</p><pre class="language-php"><code>enum ProductEvent
+{
+	case Available;
+	case Discounted;
+}
+
+interface ProductObserver
+{
+	function notify(Product $product, ProductEvent $event): void;
+}
+
+class Product
+{
+	/**
+	 * @var ProductObserver[]
+	 */
+	private $observers = [];
+
+
+	function changeAvailability()
+	{
+		// change availability
+
+		$this-&gt;notify(ProductEvent::Available);
+	}
+
+	function setDiscount()
+	{
+		// set discount
+
+		$this-&gt;notify(ProductEvent::Discounted);
+	}
+
+	// ----------- event code -----------
+
+	function attach(ProductObserver $observer)
+	{
+		$this-&gt;observers[spl_object_hash($observer)] = $observer;
+	}
+
+	function detach(ProductObserver $observer)
+	{
+		unset($this-&gt;observers[spl_object_hash($observer)]);
+	}
+
+	function notify(ProductEvent $event)
+	{
+		foreach ($this-&gt;observers as $observer) {
+			$observer-&gt;notify($this, $event);
+		}
+	}
+}
+
+class Emailer implements ProductObserver
+{
+	function notify(Product $product, ProductEvent $event): void
+	{
+		match ($event) {
+			ProductEvent::Available =&gt; $this-&gt;sendProductAvailableEmail(),
+			ProductEvent::Discounted =&gt; $this-&gt;sendProductDiscountedEmail(),
+		};
+	}
+
+	function sendProductAvailableEmail()
+	{
+		echo 'Sending product available email' . PHP_EOL;
+	}
+
+	function sendProductDiscountedEmail()
+	{
+		echo 'Sending product discounted email' . PHP_EOL;
+	}
+}
+
+class Logger implements ProductObserver
+{
+	function notify(Product $product, ProductEvent $event): void
+	{
+		echo 'Product updated: ' . $event-&gt;name  . PHP_EOL;
+	}
+}
+
+$product = new Product;
+$logger = new Logger;
+$emailer = new Emailer;
+
+$product-&gt;attach($logger);
+$product-&gt;attach($emailer);
+
+$product-&gt;changeAvailability();
+$product-&gt;setDiscount();
+
+$product-&gt;detach($emailer);
+
+$product-&gt;changeAvailability();
+$product-&gt;setDiscount();</code></pre><div><h2>Facade Pattern</h2><p>The Facade design pattern provides a simplified, unified interface to a complex subsystem, hiding intricate interactions and making the system easier to use and modify. It reduces complexity by offering a clean, high-level entry point that encapsulates the underlying implementation details, promoting loose coupling and easier switching of inner implementations.</p><pre class="language-php"><code>interface Logger
+{
+	public function log(string $text): void;
+}
+
+class FileLogger implements Logger
+{
+	public function log(string $text): void
+	{
+		// log to a file
+	}
+}
+
+class DatabaseLogger implements Logger
+{
+	public function log(string $text): void
+	{
+		// log to a database
+	}
+}
+
+class Log
+{
+	public static function info(string $logger, string $text): void
+	{
+		(new $logger)-&gt;log($text);
+	}
+}
+
+Log::info(DatabaseLogger::class, 'hello');</code></pre><div><h2>Strategy Pattern</h2><div><div>A way to switch implementations (strategies) for objects that perform the same actions differently.</div><ul><li>When some action could be done in different ways, for example payment can be processed by different payment providers.</li><li>When passing a bunch of flags to a function as parameter to configure different behaviors just pass a different behavior (strategy).</li></ul><div><pre class="language-php"><code>interface PaymentStrategyInterface
+{
+	public function doPayment($amount): void;
+}
+
+class PaymentService
+{
+	public function __construct(private PaymentStrategyInterface $strategy) {}
+
+	public function process(int $amount): void
+	{
+		$this-&gt;strategy-&gt;doPayment($amount);
+	}
+}
+
+class CreditCardPaymentStrategy implements PaymentStrategyInterface
+{
+	public function doPayment($amount): void
+	{
+		// do credit card stuff
+	}
+}
+
+class PaypalPaymentStrategy implements PaymentStrategyInterface
+{
+	public function doPayment($amount): void
+	{
+		// do paypal stuff
+	}
+}
+
+$ccStrategy = new CreditCardPaymentStrategy();
+$paypalStrategy = new PaypalPaymentStrategy();
+
+// pass in whichever
+$paymentService = new PaymentService($ccStrategy);
+
+// OR you can create Context, which encapsulates currently selected strategy
+
+class PaymentStrategyContext
+{
+	private PaymentStrategyInterface $strategy;
+
+	public function __construct(string $paymentMethod)
+	{
+		$this-&gt;strategy = match ($paymentMethod) {
+			'paypal' =&gt; new PaypalPaymentStrategy(),
+			'credit_card' =&gt; new CreditCardPaymentStrategy(),
+			default =&gt; throw new \InvalidArgumentException('Unknown payment method'),
+		};
+	}
+
+	public function doPayment($amount)
+	{
+		return $this-&gt;strategy-&gt;doPayment($amount);
+	}
+}
+
+$strategyService = new PaymentStrategyContext($request-&gt;payment_method);
+$strategyService-&gt;doPayment($amount);</code></pre><div><h2>Builder Pattern</h2><p class="whitespace-pre-wrap break-words">The Builder pattern provides a flexible and readable way to construct complex objects step by step, separating the construction of a complex object from its representation. It allows you to create different variations of an object using the same construction process, which is particularly useful when an object has multiple optional parameters or configuration possibilities.</p><ul class="-mt-1 [li&gt;&amp;]:mt-2 list-disc space-y-2 pl-8"><li class="whitespace-normal break-words">Creating objects with numerous constructor parameters</li><li class="whitespace-normal break-words">Implementing configurable object creation where the configuration may evolve</li><li class="whitespace-normal break-words">Providing a clean, fluent interface for object initialization</li><li class="whitespace-normal break-words">Ensuring consistent object creation across different configurations</li></ul><pre class="language-php"><code>class Book
+{
+	private $id;
+	private $title;
+	private $price;
+	private $author;
+
+	public function __construct(BookBuilder $builder)
+	{
+		$this-&gt;id = $builder-&gt;getId();
+		$this-&gt;title = $builder-&gt;getTitle();
+		$this-&gt;price = $builder-&gt;getPrice();
+		$this-&gt;author = $builder-&gt;getAuthor();
+	}
+}
+
+class BookBuilder
+{
+	private $id;
+	private $title;
+	private $price;
+	private $author;
+
+	public function setId($id): self
+	{
+		$this-&gt;id = $id;
+		return $this;
+	}
+
+	public function setTitle($title): self
+	{
+		$this-&gt;title = $title;
+		return $this;
+	}
+
+	public function setPrice($price): self
+	{
+		$this-&gt;price = $price;
+		return $this;
+	}
+
+	public function setAuthor($author): self
+	{
+		$this-&gt;author = $author;
+		return $this;
+	}
+
+	public function build()
+	{
+		if (empty($this-&gt;id) || empty($this-&gt;title) || empty($this-&gt;price)  || empty($this-&gt;author)) {
+			throw new \Exception('Required fields missing');
+		}
+
+		return new Book($this);
+	}
+}
+
+$productBuilder = new BookBuilder();
+$product = $productBuilder
+	-&gt;setId(101)
+	-&gt;setTitle('Title')
+	-&gt;setPrice(123.99)
+	-&gt;setAuthor('author')
+	-&gt;build();</code></pre><div><h2>Factory Pattern</h2><p>Uniform way to create objects in one step. Factory is about "what" type of object to create.</p><pre class="language-php"><code>interface Animal
+{
+	public function speak(): string;
+}
+
+class Dog implements Animal
+{
+	public function speak(): string
+	{
+		return 'Woof!';
+	}
+}
+
+class Cat implements Animal
+{
+	public function speak(): string
+	{
+		return 'Meow!';
+	}
+}
+
+class AnimalFactory
+{
+	public function createAnimal(string $type): Animal
+	{
+		return match ($type) {
+			'dog' =&gt; new Dog(),
+			'cat' =&gt; new Cat(),
+			default =&gt; throw new \Exception('Unknown animal')
+		};
+	}
+}
+
+// Example usage
+$factory = new AnimalFactory();
+$dog = $factory-&gt;createAnimal('dog');
+echo $dog-&gt;speak(); </code></pre><div><h2>Adapter Pattern</h2><p>The Adapter pattern allows incompatible interfaces to work together by creating a wrapper that converts the interface of one class into another interface that clients expect. It enables seamless integration between classes with different interfaces, allowing you to make existing classes work with others without modifying their source code. This pattern is particularly useful when migrating between libraries, integrating third-party components, or bridging legacy and modern systems.</p><pre class="language-php"><code>// target interface
+interface BookInterface
+{
+	public function read();
+}
+
+// existing class with an incompatible interface
+class EBook
+{
+	public function displayContent()
+	{
+		echo 'Displaying e-book content';
+	}
+}
+
+class EBookAdapter implements BookInterface
+{
+	private $eBook;
+
+	public function __construct(EBook $eBook)
+	{
+		$this-&gt;eBook = $eBook;
+	}
+
+	public function read()
+	{
+		$this-&gt;eBook-&gt;displayContent();
+	}
+}
+
+class Library
+{
+	public function readBook(BookInterface $book)
+	{
+		$book-&gt;read();
+	}
+}
+
+// Usage
+$eBook = new EBook();
+$eBookAdapter = new EBookAdapter($eBook);
+
+$library = new Library();
+$library-&gt;readBook($eBookAdapter);</code></pre><div><h2>Decorator Pattern</h2><p>The Decorator pattern dynamically adds behaviors to an object by wrapping it with additional functionality, allowing flexible and granular extension without inheritance. It enables runtime modification of individual objects' capabilities without affecting other instances of the same class.</p><pre class="language-php"><code>interface Pie
+{
+	public function makePie(): string;
+	public function getPrice(): int;
+}
+
+class BasicPie implements Pie
+{
+	private const PRICE = 1;
+
+	public function makePie(): string
+	{
+		return 'basic pie';
+	}
+
+	public function getPrice(): int
+	{
+		return self::PRICE;
+	}
+}
+
+abstract class BasicPieDecorator implements Pie
+{
+	public function __construct(protected Pie $basicPie) {}
+
+	abstract public function makePie(): string;
+	abstract public function getPrice(): int;
+}
+
+class ApplePie extends BasicPieDecorator
+{
+	private const PRICE = 2;
+
+	public function makePie(): string
+	{
+		return 'apple pie';
+	}
+
+	public function getPrice(): int
+	{
+		return $this-&gt;basicPie-&gt;getPrice() + self::PRICE;
+	}
+}
+
+class PumpkinPie extends BasicPieDecorator
+{
+	private const PRICE = 3;
+
+	public function makePie(): string
+	{
+		return 'pumpkin pie';
+	}
+
+	public function getPrice(): int
+	{
+		return $this-&gt;basicPie-&gt;getPrice() + self::PRICE;
+	}
+}
+
+$basicPie = new BasicPie();
+$basicPie-&gt;getPrice();
+
+$applePie = new ApplePie($basicPie);
+$applePie-&gt;getPrice();
+
+$pumpkinPie = new PumpkinPie($basicPie);
+$pumpkinPie-&gt;getPrice();</code></pre></div></div></div></div></div></div></div></div></div><footer class="wrapper post__footer"><p class="post__last-updated">This article was updated on December 8, 2024</p><div class="post__share"></div></footer><nav class="pagination"><div class="pagination__title"><span>Read other posts</span></div><div class="pagination__buttons"><a href="https://phpmemo.com/lesser-known-design-patterns.html" class="btn previous" rel="prev" aria-label="[MISSING TRANSLATION]:  Lesser Known Design Patterns "><span class="btn__icon">←</span> <span class="btn__text">Lesser Known Design Patterns</span></a></div></nav></article></main><footer class="footer"><div class="footer__inner"><div class="footer__copyright"><p>© 2024 PHPMemo. Find me on <a href="https://github.com/enxas" target="_blank" rel="noopener">GitHub</a>.</p></div></div></footer></div><script defer="defer" src="https://phpmemo.com/assets/js/scripts.min.js?v=c2232aa7558e9517946129d2a1b8c770"></script><script>window.publiiThemeMenuConfig={mobileMenuMode:'sidebar',animationSpeed:300,submenuWidth: 'auto',doubleClickTime:500,mobileMenuExpandableSubmenus:true,relatedContainerForOverlayMenuSelector:'.top'};</script><script>var images = document.querySelectorAll('img[loading]');
+        for (var i = 0; i < images.length; i++) {
+            if (images[i].complete) {
+                images[i].classList.add('is-loaded');
+            } else {
+                images[i].addEventListener('load', function () {
+                    this.classList.add('is-loaded');
+                }, false);
+            }
+        }</script><script defer="defer" src="https://phpmemo.com/media/plugins/syntaxHighlighter/prism.js"></script><script defer="defer" src="https://phpmemo.com/media/plugins/syntaxHighlighter/clipboard.min.js"></script><script defer="defer" src="https://phpmemo.com/media/plugins/syntaxHighlighter/prism-copy-to-clipboard.min.js"></script></body></html>
