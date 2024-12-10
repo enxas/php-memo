@@ -3,7 +3,7 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2024-12-08T17:05:37+02:00</updated>
+    <updated>2024-12-10T18:47:42+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
@@ -637,7 +637,7 @@ return tap(Article::findOrFail($id), function (Article $article) {
 }
 
 // Usage example 
-$data = cacheWithRefreshAhead('some-key', 30, 5, function () {
+$data = cacheWithRefreshAhead('some-key', 30, 0.7, function () {
 	// Retrieve fresh data
 	return ['data' =&gt; 123];
 });</code></pre>
