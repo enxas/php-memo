@@ -10,6 +10,23 @@
     },
     "items": [
         {
+            "id": "https://phpmemo.com/identifying-and-logging-duplicate-queries-in-laravel-requests.html",
+            "url": "https://phpmemo.com/identifying-and-logging-duplicate-queries-in-laravel-requests.html",
+            "title": "Identifying and Logging Duplicate Queries in Laravel Requests",
+            "summary": "When developing your Laravel application, you want to avoid unnecessarily making duplicate requests for performance reasons. However, it can be challenging to identify how many&hellip;",
+            "content_html": "<p>When developing your Laravel application, you want to avoid unnecessarily making duplicate requests for performance reasons. However, it can be challenging to identify how many and which queries are duplicates. Here's a helper script that logs duplicate queries to the <code>laravel.log</code> file and records how many times they were executed.</p>\n<p>Place this code in the <code>boot()</code> method of your <code>AppServiceProvider.php</code> file, then check your <code>laravel.log</code> file. This code uses Redis, but you can swap it to Cache.</p>\n<pre class=\"language-php\"><code>Redis::del('QueryStats');\n\nEvent::listen(QueryExecuted::class, function (QueryExecuted $event) {\n\tRedis::rpush('QueryStats', json_encode([\n\t\t'connection' =&gt; $event-&gt;connectionName,\n\t\t'query' =&gt; $event-&gt;sql,\n\t\t'bindings' =&gt; $event-&gt;bindings,\n\t\t'time' =&gt; $event-&gt;time,\n\t\t'trace' =&gt; collect(debug_backtrace())-&gt;map(function ($trace) {\n\t\t\treturn Arr::only($trace, ['file', 'line', 'class', 'method']);\n\t\t})-&gt;toArray(),\n\t]));\n});\n\n$this-&gt;app-&gt;terminating(function () {\n\t$stats = Redis::lrange('QueryStats', 0, -1);\n\n\t$data = [\n\t\t'query_count' =&gt; 0,\n\t];\n\n\tforeach ($stats as $stat) {\n\t\t$queryStat = json_decode($stat);\n\n\t\tif (str_contains($queryStat-&gt;query, 'telescope_')) {\n\t\t\tcontinue;\n\t\t}\n\n\t\tif (!isset($data[$queryStat-&gt;query])) {\n\t\t\t$data[$queryStat-&gt;query] = 1;\n\t\t} else {\n\t\t\t$data[$queryStat-&gt;query] += 1;\n\t\t}\n\n\t\t$data['query_count'] += 1;\n\n\t\tarsort($data);\n\t}\n\n\tLog::info($data);\n});</code></pre>",
+            "author": {
+                "name": "Enxas"
+            },
+            "tags": [
+                   "PHP",
+                   "Laravel",
+                   "Debug"
+            ],
+            "date_published": "2024-12-10T21:01:22+02:00",
+            "date_modified": "2024-12-10T21:02:36+02:00"
+        },
+        {
             "id": "https://phpmemo.com/most-popular-design-patterns.html",
             "url": "https://phpmemo.com/most-popular-design-patterns.html",
             "title": "Most Popular Design Patterns",

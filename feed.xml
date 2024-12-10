@@ -3,12 +3,77 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2024-12-10T18:47:42+02:00</updated>
+    <updated>2024-12-10T21:02:36+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
     <id>https://phpmemo.com</id>
 
+    <entry>
+        <title>Identifying and Logging Duplicate Queries in Laravel Requests</title>
+        <author>
+            <name>Enxas</name>
+        </author>
+        <link href="https://phpmemo.com/identifying-and-logging-duplicate-queries-in-laravel-requests.html"/>
+        <id>https://phpmemo.com/identifying-and-logging-duplicate-queries-in-laravel-requests.html</id>
+            <category term="PHP"/>
+            <category term="Laravel"/>
+            <category term="Debug"/>
+
+        <updated>2024-12-10T21:01:22+02:00</updated>
+            <summary>
+                <![CDATA[
+                    When developing your Laravel application, you want to avoid unnecessarily making duplicate requests for performance reasons. However, it can be challenging to identify how many&hellip;
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <p>When developing your Laravel application, you want to avoid unnecessarily making duplicate requests for performance reasons. However, it can be challenging to identify how many and which queries are duplicates. Here's a helper script that logs duplicate queries to the <code>laravel.log</code> file and records how many times they were executed.</p>
+<p>Place this code in the <code>boot()</code> method of your <code>AppServiceProvider.php</code> file, then check your <code>laravel.log</code> file. This code uses Redis, but you can swap it to Cache.</p>
+<pre class="language-php"><code>Redis::del('QueryStats');
+
+Event::listen(QueryExecuted::class, function (QueryExecuted $event) {
+	Redis::rpush('QueryStats', json_encode([
+		'connection' =&gt; $event-&gt;connectionName,
+		'query' =&gt; $event-&gt;sql,
+		'bindings' =&gt; $event-&gt;bindings,
+		'time' =&gt; $event-&gt;time,
+		'trace' =&gt; collect(debug_backtrace())-&gt;map(function ($trace) {
+			return Arr::only($trace, ['file', 'line', 'class', 'method']);
+		})-&gt;toArray(),
+	]));
+});
+
+$this-&gt;app-&gt;terminating(function () {
+	$stats = Redis::lrange('QueryStats', 0, -1);
+
+	$data = [
+		'query_count' =&gt; 0,
+	];
+
+	foreach ($stats as $stat) {
+		$queryStat = json_decode($stat);
+
+		if (str_contains($queryStat-&gt;query, 'telescope_')) {
+			continue;
+		}
+
+		if (!isset($data[$queryStat-&gt;query])) {
+			$data[$queryStat-&gt;query] = 1;
+		} else {
+			$data[$queryStat-&gt;query] += 1;
+		}
+
+		$data['query_count'] += 1;
+
+		arsort($data);
+	}
+
+	Log::info($data);
+});</code></pre>
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>Most Popular Design Patterns</title>
         <author>
