@@ -3,12 +3,179 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2024-12-10T21:02:36+02:00</updated>
+    <updated>2024-12-14T12:22:41+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
     <id>https://phpmemo.com</id>
 
+    <entry>
+        <title>How to Insert 1 Million Records Lightning-Fast</title>
+        <author>
+            <name>Enxas</name>
+        </author>
+        <link href="https://phpmemo.com/fastest-way-to-insert-one-million-records-to-mysql-database.html"/>
+        <id>https://phpmemo.com/fastest-way-to-insert-one-million-records-to-mysql-database.html</id>
+            <category term="PHP"/>
+            <category term="MySQL"/>
+            <category term="Laravel"/>
+
+        <updated>2024-12-12T21:49:53+02:00</updated>
+            <summary>
+                <![CDATA[
+                    When working with large datasets, inserting a massive number of records into a database can become painfully slow. Fortunately, MySQL provides an optimized solution: the&hellip;
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <p>When working with large datasets, inserting a massive number of records into a database can become painfully slow. Fortunately, MySQL provides an optimized solution: the <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">LOAD DATA</code> statement. This method is significantly faster than traditional insertion methods, making it ideal for bulk data imports.</p>
+<p>In this tutorial, I'll demonstrate how to generate, export, and import one million records into a MySQL database using Laravel. The principles discussed can be applied to various PHP applications.</p>
+<h2 class="font-600 text-xl font-bold">Creating the Database Schema</h2>
+<p class="whitespace-pre-wrap break-words">Let's start by defining a schema for a <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">shops</code> table:</p>
+<pre class="language-php"><code>Schema::create('shops', function (Blueprint $table) {
+	$table-&gt;id();
+	$table-&gt;string('name');
+	$table-&gt;text('description');
+	$table-&gt;string('email')-&gt;unique();
+	$table-&gt;date('established_date');
+	$table-&gt;time('opening_time'); 
+	$table-&gt;decimal('rating', 3, 2);
+	$table-&gt;boolean('is_open');
+});</code></pre>
+<h2 class="font-600 text-xl font-bold">Generating Test Data</h2>
+<p class="whitespace-pre-wrap break-words">To populate our database, we'll use the Faker library to generate realistic sample data:</p>
+<pre class="language-php"><code>$faker = \Faker\Factory::create();
+
+$shops = [];
+
+for ($i = 0; $i &lt; 1_000_000; $i++) {
+	$shops[] = [
+		'name' =&gt; $faker-&gt;company,
+		'description' =&gt; $faker-&gt;paragraph,
+		'email' =&gt; $faker-&gt;unique()-&gt;safeEmail,
+		'established_date' =&gt; $faker-&gt;date,
+		'opening_time' =&gt; $faker-&gt;time,
+		'rating' =&gt; $faker-&gt;randomFloat(2, 0, 5),
+		'is_open' =&gt; $faker-&gt;boolean,
+	];
+
+	// insert in batches to avoid memory issues
+	if ($i % 1000 === 0) {
+		DB::table('shops')-&gt;insert($shops);
+		$shops = [];
+	}
+}
+
+// insert any remaining records
+if (!empty($shops)) {
+	DB::table('shops')-&gt;insert($shops);
+}</code></pre>
+<h2 class="font-600 text-xl font-bold">Exporting Data to CSV</h2>
+<p class="whitespace-pre-wrap break-words">Next, we'll export the records to a CSV file:</p>
+<pre class="language-php"><code>$filePath = storage_path('app/shops.csv');
+		
+$file = fopen($filePath, 'w');
+
+DB::table('shops')-&gt;chunkById(10_000, function ($shops) use ($file) {
+	foreach ($shops as $shop) {
+		$row = [
+			$shop-&gt;id, 
+			$shop-&gt;name, 
+			$shop-&gt;description, 
+			$shop-&gt;email, 
+			$shop-&gt;established_date, 
+			$shop-&gt;opening_time, 
+			$shop-&gt;rating, 
+			$shop-&gt;is_open,
+		];
+
+		fputcsv($file, $row, eol: "\n");
+	}
+});
+
+fclose($file);</code></pre>
+<p>Now that we have all of our data in a CSV file, we can clean the <code>shops</code> table:</p>
+<pre class="language-sql"><code>TRUNCATE TABLE shops;</code></pre>
+<h2>Importing data (slow)</h2>
+<p>This is the standard approach for writing code to import data:</p>
+<pre class="language-php"><code>DB::statement('ALTER TABLE shops DISABLE KEYS');
+
+$handle = fopen(storage_path('app/shops.csv'), 'r');
+$shops = [];
+
+while (($data = fgetcsv($handle, 500, ',')) !== false) {
+	$shops[] = [
+		'id' =&gt; $data[0],
+		'name' =&gt; $data[1],
+		'description' =&gt; $data[2],
+		'email' =&gt; $data[3],
+		'established_date' =&gt; $data[4],
+		'opening_time' =&gt; $data[5],
+		'rating' =&gt; $data[6],
+		'is_open' =&gt; $data[7],
+	];
+
+	// insert in batches to avoid memory issues
+	if (count($shops) % 1000 === 0) {
+		DB::table('shops')-&gt;insert($shops);
+		$shops = [];
+	}
+}
+
+// insert any remaining records
+if (count($shops) &gt; 0) {
+	DB::table('shops')-&gt;insert($shops);
+}
+
+fclose($handle);
+
+DB::statement('ALTER TABLE shops ENABLE KEYS');</code></pre>
+<p>The issue with this approach is that it’s slow. It took approximately 7 minutes and 40 seconds to import all the data.</p>
+<h2 class="font-600 text-xl font-bold">Preparing for Import</h2>
+<p class="whitespace-pre-wrap break-words">Before doing <code>LOAD DATA</code> import, we need to make a few configurations:</p>
+<h3 class="font-600 text-lg font-bold">1. Check and Enable local_infile</h3>
+<p class="whitespace-pre-wrap break-words">First, verify if the <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">local_infile</code> feature is enabled in MySQL database:</p>
+<pre class="language-sql"><code>SHOW GLOBAL VARIABLES LIKE 'local_infile';</code></pre>
+<p>If it's OFF, enable it:</p>
+<pre class="language-sql"><code>SET GLOBAL local_infile = TRUE;</code></pre>
+<h3 class="font-600 text-lg font-bold">2. Configure Laravel Database Connection</h3>
+<p class="whitespace-pre-wrap break-words">In <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">config/database.php</code>, add the <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">local_infile</code> option:</p>
+<div>
+<pre class="language-apacheconf"><code>'mysql' =&gt; [
+    // ... other configurations
+    'options' =&gt; extension_loaded('pdo_mysql') ? array_filter([
+        PDO::MYSQL_ATTR_LOCAL_INFILE =&gt; true,
+    ]) : [],
+],</code></pre>
+<h2 class="font-600 text-xl font-bold">Importing Data Using LOAD DATA (fast)</h2>
+<p class="whitespace-pre-wrap break-words">Now we're ready to import the data efficiently:</p>
+<pre class="language-php"><code>$filePath = storage_path('app/shops.csv');
+
+DB::statement('ALTER TABLE shops DISABLE KEYS');
+
+DB::unprepared("
+    LOAD DATA LOCAL INFILE '$filePath' 
+    INTO TABLE shops 
+    FIELDS TERMINATED BY ',' 
+    OPTIONALLY ENCLOSED BY '\"' 
+    LINES TERMINATED BY '\\n' 
+    IGNORE 0 ROWS 
+    (id, name, description, email, established_date, opening_time, rating, is_open)
+");
+
+DB::statement('ALTER TABLE shops ENABLE KEYS');</code></pre>
+<h2 class="font-600 text-xl font-bold">Performance Insights</h2>
+<p class="whitespace-pre-wrap break-words">Wit this approach, importing a 233 MB CSV file with one million records took approximately 40 seconds—a remarkable improvement over traditional insertion methods.</p>
+<h2>Some Considerations</h2>
+<ul>
+<li class="whitespace-normal break-words">Disable keys before bulk import and re-enable them after import.</li>
+<li>For security reasons <code>local_infile</code> should be disabled when it's not in use.</li>
+<li>Large CSV file imports slow down over time, so it's better to import two 100-million record files than one 200-million record file.</li>
+</ul>
+</div>
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>Identifying and Logging Duplicate Queries in Laravel Requests</title>
         <author>

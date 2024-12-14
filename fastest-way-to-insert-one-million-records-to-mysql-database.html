@@ -1,0 +1,117 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>How to Insert 1 Million Records Lightning-Fast - PHPMemo</title><meta name="description" content="When working with large datasets, inserting a massive number of records into a database can become painfully slow. Fortunately, MySQL provides an optimized solution: the&hellip;"><meta name="generator" content="Publii Open-Source CMS for Static Site"><link rel="stylesheet" href="https://phpmemo.com/media/plugins/syntaxHighlighter/prism-black.css"><link rel="canonical" href="https://phpmemo.com/fastest-way-to-insert-one-million-records-to-mysql-database.html"><link rel="alternate" type="application/atom+xml" href="https://phpmemo.com/feed.xml"><link rel="alternate" type="application/json" href="https://phpmemo.com/feed.json"><meta property="og:title" content="How to Insert 1 Million Records Lightning-Fast"><meta property="og:site_name" content="PHPMemo"><meta property="og:description" content="When working with large datasets, inserting a massive number of records into a database can become painfully slow. Fortunately, MySQL provides an optimized solution: the&hellip;"><meta property="og:url" content="https://phpmemo.com/fastest-way-to-insert-one-million-records-to-mysql-database.html"><meta property="og:type" content="article"><link rel="preload" href="https://phpmemo.com/assets/dynamic/fonts/jetbrainsmono/jetbrainsmono.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="https://phpmemo.com/assets/dynamic/fonts/jetbrainsmono/jetbrainsmono-italic.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="https://phpmemo.com/assets/css/style.css?v=82007ae11cb9f2a56571c770331b13e7"><script type="application/ld+json">{"@context":"http://schema.org","@type":"Article","mainEntityOfPage":{"@type":"WebPage","@id":"https://phpmemo.com/fastest-way-to-insert-one-million-records-to-mysql-database.html"},"headline":"How to Insert 1 Million Records Lightning-Fast","datePublished":"2024-12-12T21:49+02:00","dateModified":"2024-12-14T12:22+02:00","description":"When working with large datasets, inserting a massive number of records into a database can become painfully slow. Fortunately, MySQL provides an optimized solution: the&hellip;","author":{"@type":"Person","name":"Enxas","url":"https://phpmemo.com/authors/enxas/"},"publisher":{"@type":"Organization","name":"Enxas"}}</script><noscript><style>img[loading] {
+                    opacity: 1;
+                }</style></noscript></head><body class="post-template"><div class="container container--center"><header class="header"><div class="header__logo"><a class="logo" href="https://phpmemo.com/">PHPMemo</a></div></header><main class="content"><article class="post"><header><h1 class="post__title">How to Insert 1 Million Records Lightning-Fast</h1><div class="post__meta"><time datetime="2024-12-12T21:49" class="post__date">December 12, 2024 </time><span class="post__author"><a href="https://phpmemo.com/authors/enxas/" class="feed__author">Enxas</a></span></div><div class="post__tags"><a href="https://phpmemo.com/tags/laravel/" class="invert">Laravel</a> <a href="https://phpmemo.com/tags/mysql/" class="invert">MySQL</a> <a href="https://phpmemo.com/tags/php/" class="invert">PHP</a></div></header><div class="post__entry"><p>When working with large datasets, inserting a massive number of records into a database can become painfully slow. Fortunately, MySQL provides an optimized solution: the <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">LOAD DATA</code> statement. This method is significantly faster than traditional insertion methods, making it ideal for bulk data imports.</p><p>In this tutorial, I'll demonstrate how to generate, export, and import one million records into a MySQL database using Laravel. The principles discussed can be applied to various PHP applications.</p><h2 class="font-600 text-xl font-bold">Creating the Database Schema</h2><p class="whitespace-pre-wrap break-words">Let's start by defining a schema for a <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">shops</code> table:</p><pre class="language-php"><code>Schema::create('shops', function (Blueprint $table) {
+	$table-&gt;id();
+	$table-&gt;string('name');
+	$table-&gt;text('description');
+	$table-&gt;string('email')-&gt;unique();
+	$table-&gt;date('established_date');
+	$table-&gt;time('opening_time'); 
+	$table-&gt;decimal('rating', 3, 2);
+	$table-&gt;boolean('is_open');
+});</code></pre><h2 class="font-600 text-xl font-bold">Generating Test Data</h2><p class="whitespace-pre-wrap break-words">To populate our database, we'll use the Faker library to generate realistic sample data:</p><pre class="language-php"><code>$faker = \Faker\Factory::create();
+
+$shops = [];
+
+for ($i = 0; $i &lt; 1_000_000; $i++) {
+	$shops[] = [
+		'name' =&gt; $faker-&gt;company,
+		'description' =&gt; $faker-&gt;paragraph,
+		'email' =&gt; $faker-&gt;unique()-&gt;safeEmail,
+		'established_date' =&gt; $faker-&gt;date,
+		'opening_time' =&gt; $faker-&gt;time,
+		'rating' =&gt; $faker-&gt;randomFloat(2, 0, 5),
+		'is_open' =&gt; $faker-&gt;boolean,
+	];
+
+	// insert in batches to avoid memory issues
+	if ($i % 1000 === 0) {
+		DB::table('shops')-&gt;insert($shops);
+		$shops = [];
+	}
+}
+
+// insert any remaining records
+if (!empty($shops)) {
+	DB::table('shops')-&gt;insert($shops);
+}</code></pre><h2 class="font-600 text-xl font-bold">Exporting Data to CSV</h2><p class="whitespace-pre-wrap break-words">Next, we'll export the records to a CSV file:</p><pre class="language-php"><code>$filePath = storage_path('app/shops.csv');
+		
+$file = fopen($filePath, 'w');
+
+DB::table('shops')-&gt;chunkById(10_000, function ($shops) use ($file) {
+	foreach ($shops as $shop) {
+		$row = [
+			$shop-&gt;id, 
+			$shop-&gt;name, 
+			$shop-&gt;description, 
+			$shop-&gt;email, 
+			$shop-&gt;established_date, 
+			$shop-&gt;opening_time, 
+			$shop-&gt;rating, 
+			$shop-&gt;is_open,
+		];
+
+		fputcsv($file, $row, eol: "\n");
+	}
+});
+
+fclose($file);</code></pre><p>Now that we have all of our data in a CSV file, we can clean the <code>shops</code> table:</p><pre class="language-sql"><code>TRUNCATE TABLE shops;</code></pre><h2>Importing data (slow)</h2><p>This is the standard approach for writing code to import data:</p><pre class="language-php"><code>DB::statement('ALTER TABLE shops DISABLE KEYS');
+
+$handle = fopen(storage_path('app/shops.csv'), 'r');
+$shops = [];
+
+while (($data = fgetcsv($handle, 500, ',')) !== false) {
+	$shops[] = [
+		'id' =&gt; $data[0],
+		'name' =&gt; $data[1],
+		'description' =&gt; $data[2],
+		'email' =&gt; $data[3],
+		'established_date' =&gt; $data[4],
+		'opening_time' =&gt; $data[5],
+		'rating' =&gt; $data[6],
+		'is_open' =&gt; $data[7],
+	];
+
+	// insert in batches to avoid memory issues
+	if (count($shops) % 1000 === 0) {
+		DB::table('shops')-&gt;insert($shops);
+		$shops = [];
+	}
+}
+
+// insert any remaining records
+if (count($shops) &gt; 0) {
+	DB::table('shops')-&gt;insert($shops);
+}
+
+fclose($handle);
+
+DB::statement('ALTER TABLE shops ENABLE KEYS');</code></pre><p>The issue with this approach is that it’s slow. It took approximately 7 minutes and 40 seconds to import all the data.</p><h2 class="font-600 text-xl font-bold">Preparing for Import</h2><p class="whitespace-pre-wrap break-words">Before doing <code>LOAD DATA</code> import, we need to make a few configurations:</p><h3 class="font-600 text-lg font-bold">1. Check and Enable local_infile</h3><p class="whitespace-pre-wrap break-words">First, verify if the <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">local_infile</code> feature is enabled in MySQL database:</p><pre class="language-sql"><code>SHOW GLOBAL VARIABLES LIKE 'local_infile';</code></pre><p>If it's OFF, enable it:</p><pre class="language-sql"><code>SET GLOBAL local_infile = TRUE;</code></pre><h3 class="font-600 text-lg font-bold">2. Configure Laravel Database Connection</h3><p class="whitespace-pre-wrap break-words">In <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">config/database.php</code>, add the <code class="bg-text-200/5 border border-0.5 border-border-300 text-danger-000 whitespace-pre-wrap rounded-[0.3rem] px-1 py-px text-[0.9rem]">local_infile</code> option:</p><div><pre class="language-apacheconf"><code>'mysql' =&gt; [
+    // ... other configurations
+    'options' =&gt; extension_loaded('pdo_mysql') ? array_filter([
+        PDO::MYSQL_ATTR_LOCAL_INFILE =&gt; true,
+    ]) : [],
+],</code></pre><h2 class="font-600 text-xl font-bold">Importing Data Using LOAD DATA (fast)</h2><p class="whitespace-pre-wrap break-words">Now we're ready to import the data efficiently:</p><pre class="language-php"><code>$filePath = storage_path('app/shops.csv');
+
+DB::statement('ALTER TABLE shops DISABLE KEYS');
+
+DB::unprepared("
+    LOAD DATA LOCAL INFILE '$filePath' 
+    INTO TABLE shops 
+    FIELDS TERMINATED BY ',' 
+    OPTIONALLY ENCLOSED BY '\"' 
+    LINES TERMINATED BY '\\n' 
+    IGNORE 0 ROWS 
+    (id, name, description, email, established_date, opening_time, rating, is_open)
+");
+
+DB::statement('ALTER TABLE shops ENABLE KEYS');</code></pre><h2 class="font-600 text-xl font-bold">Performance Insights</h2><p class="whitespace-pre-wrap break-words">Wit this approach, importing a 233 MB CSV file with one million records took approximately 40 seconds—a remarkable improvement over traditional insertion methods.</p><h2>Some Considerations</h2><ul><li class="whitespace-normal break-words">Disable keys before bulk import and re-enable them after import.</li><li>For security reasons <code>local_infile</code> should be disabled when it's not in use.</li><li>Large CSV file imports slow down over time, so it's better to import two 100-million record files than one 200-million record file.</li></ul></div></div><footer class="wrapper post__footer"><p class="post__last-updated">This article was updated on December 14, 2024</p><div class="post__share"></div></footer><nav class="pagination"><div class="pagination__title"><span>Read other posts</span></div><div class="pagination__buttons"><a href="https://phpmemo.com/identifying-and-logging-duplicate-queries-in-laravel-requests.html" class="btn previous" rel="prev" aria-label="[MISSING TRANSLATION]:  Identifying and Logging Duplicate Queries in Laravel Requests "><span class="btn__icon">←</span> <span class="btn__text">Identifying and Logging Duplicate Queries in Laravel Requests</span></a></div></nav></article></main><footer class="footer"><div class="footer__inner"><div class="footer__copyright"><p>© 2024 PHPMemo. Find me on <a href="https://github.com/enxas" target="_blank" rel="noopener">GitHub</a>.</p></div></div></footer></div><script defer="defer" src="https://phpmemo.com/assets/js/scripts.min.js?v=c2232aa7558e9517946129d2a1b8c770"></script><script>window.publiiThemeMenuConfig={mobileMenuMode:'sidebar',animationSpeed:300,submenuWidth: 'auto',doubleClickTime:500,mobileMenuExpandableSubmenus:true,relatedContainerForOverlayMenuSelector:'.top'};</script><script>var images = document.querySelectorAll('img[loading]');
+        for (var i = 0; i < images.length; i++) {
+            if (images[i].complete) {
+                images[i].classList.add('is-loaded');
+            } else {
+                images[i].addEventListener('load', function () {
+                    this.classList.add('is-loaded');
+                }, false);
+            }
+        }</script><script defer="defer" src="https://phpmemo.com/media/plugins/syntaxHighlighter/prism.js"></script><script defer="defer" src="https://phpmemo.com/media/plugins/syntaxHighlighter/clipboard.min.js"></script><script defer="defer" src="https://phpmemo.com/media/plugins/syntaxHighlighter/prism-copy-to-clipboard.min.js"></script></body></html>
