@@ -3,12 +3,145 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2024-12-14T12:22:41+02:00</updated>
+    <updated>2025-02-02T15:32:48+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
     <id>https://phpmemo.com</id>
 
+    <entry>
+        <title>Demystifying Laravel&#x27;s Higher Order Messaging</title>
+        <author>
+            <name>Enxas</name>
+        </author>
+        <link href="https://phpmemo.com/higher-order-messages.html"/>
+        <id>https://phpmemo.com/higher-order-messages.html</id>
+            <category term="PHP"/>
+            <category term="Laravel"/>
+            <category term="Design Patterns"/>
+
+        <updated>2025-02-02T15:20:45+02:00</updated>
+            <summary>
+                <![CDATA[
+                    I was browsing some Laravel project codebases when I came across code that looked like this: $participants = collect([...]); $team2Participants = $participants-&gt;filter-&gt;belongsToTeam(2); $totalScore = $team2Participants-&gt;sum-&gt;score;&hellip;
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <p>I was browsing some Laravel project codebases when I came across code that looked like this:</p>
+<pre class="language-php"><code>$participants = collect([...]);
+$team2Participants = $participants-&gt;filter-&gt;belongsToTeam(2);
+$totalScore = $team2Participants-&gt;sum-&gt;score;</code></pre>
+<p>I had a good idea of what this code does, but I had never seen collection methods written like this before. When I call collection methods, I usually provide a callback, like this:</p>
+<pre class="language-php"><code>$currentYearOrders = $participants-&gt;filter(function ($participant) {
+    return $participant-&gt;belongsToTeam(2);
+});
+
+$currentYearAmount = $currentYearOrders-&gt;sum(function ($order) {
+    return $order-&gt;score;
+});</code></pre>
+<p>This made me wonder: what is this syntax, and how does it work? Spoiler alert: it involves some magic!</p>
+<p>After some research, I learned that Laravel calls this pattern <strong><a href="https://laravel.com/docs/11.x/collections#higher-order-messages" target="_blank" rel="noopener noreferrer">Higher Order Messaging</a></strong>. To better understand how it works, I decided to reimplement it in vanilla PHP.</p>
+<h3>Creating a Basic Collection Class</h3>
+<p>First, I needed a collection class, so I created one with <code>filter()</code> and <code>sum()</code> methods:</p>
+<pre class="language-php"><code>class MyCollection
+{
+    public function __construct(private array $items = []) {}
+
+    public function filter(callable $callback): static
+    {
+        return new static(array_filter($this-&gt;items, $callback));
+    }
+
+    public function sum(callable $callback): int|float
+    {
+        return array_reduce($this-&gt;items, fn($result, $item) =&gt; $result + $callback($item), 0);
+    }
+}</code></pre>
+<p>This is a simple wrapper class. The <code>filter()</code> method calls PHP’s <code>array_filter()</code> and returns a new instance of <code>MyCollection</code> with items filtered using the provided callback. The <code>sum()</code> method iterates over array items and adds them up.</p>
+<h3>Creating a Basic Participant Class</h3>
+<p>Next, I created a basic <code>Participant</code> data class. It holds the team number a participant belongs to and their score. It also has a method to check if a participant belongs to a specific team:</p>
+<pre class="language-php"><code>class Participant
+{
+    public function __construct(private int $teamNumber, public int $score = 0) {}
+
+    public function belongsToTeam(int $teamNumber): bool
+    {
+        return $this-&gt;teamNumber === $teamNumber;
+    }
+}</code></pre>
+<h3>Testing the Functionality</h3>
+<p>Now, let’s check if our implementation works as expected:</p>
+<pre class="language-php"><code>$participants = new MyCollection([
+    new Participant(teamNumber: 1, score: 11),
+    new Participant(teamNumber: 1, score: 6),
+    new Participant(teamNumber: 2, score: 5),
+    new Participant(teamNumber: 2, score: 8),
+    new Participant(teamNumber: 2, score: 7),
+    new Participant(teamNumber: 3, score: 20),
+]);
+
+// Result: 3 items
+$team2Participants = $participants-&gt;filter(fn($participant) =&gt; $participant-&gt;belongsToTeam(2));
+// Result: 20
+$totalScore = $team2Participants-&gt;sum(fn($participant) =&gt; $participant-&gt;score);
+
+// Chaining the methods
+$totalScore = $participants
+    -&gt;filter(fn($participant) =&gt; $participant-&gt;belongsToTeam(2))
+    -&gt;sum(fn($participant) =&gt; $participant-&gt;score);</code></pre>
+<p>Everything works as expected. We create six participants and filter out everyone except those from team 2. We are left with three participants. When we sum their scores, the result is 20. We can even chain <code>sum()</code> after <code>filter()</code> because <code>filter()</code> returns a new instance of <code>MyCollection</code>. With our basic collection functionality in place, it’s time for the fun part—replicating Laravel’s Higher Order Messaging.</p>
+<h3>Implementing Higher Order Messaging</h3>
+<p>When we call a property on Laravel’s collection that doesn’t exist, such as:</p>
+<pre class="language-php"><code>$collection-&gt;food;</code></pre>
+<p>Laravel triggers the magic <code>__get()</code> method on the collection, which instantiates a class named <a href="https://github.com/laravel/framework/blob/11.x/src/Illuminate/Collections/HigherOrderCollectionProxy.php" target="_blank" rel="noopener noreferrer">HigherOrderCollectionProxy</a> and passes <code>$collection</code> and <code>food</code> as parameters (<code>HigherOrderCollectionProxy($collection, 'food')</code>). When we call a method or try to get a property on the <code>HigherOrderCollectionProxy</code> class, it uses <code>__get()</code> and <code>__call()</code> magic methods to proxy that method or property call back to <code>$collection</code>.</p>
+<p>Let’s modify our <code>MyCollection</code> class to add the <code>__get()</code> method:</p>
+<pre class="language-php"><code>class MyCollection
+{
+    // ...
+
+    public function __get(string $key)
+    {
+        return new HigherOrderCollectionProxy($this, $key);
+    }
+
+    // ...
+}</code></pre>
+<p>Now, when <code>$participants-&gt;filter</code> is called, it creates an instance of <code>HigherOrderCollectionProxy</code>, passing the collection and method name (<code>filter</code>) to that instance.</p>
+<h3>Creating the HigherOrderCollectionProxy Class</h3>
+<pre class="language-php"><code>class HigherOrderCollectionProxy
+{
+    public function __construct(private $collection, private string $collMethod) {}
+
+    public function __call(string $method, array $parameters)
+    {
+        return $this-&gt;collection-&gt;{$this-&gt;collMethod}(fn($value) =&gt; $value-&gt;{$method}(...$parameters));
+    }
+
+    public function __get(string $key)
+    {
+        return $this-&gt;collection-&gt;{$this-&gt;collMethod}(fn($value) =&gt; $value-&gt;{$key});
+    }
+}</code></pre>
+<p>This is a simplified reimplementation of Laravel’s actual <code>HigherOrderCollectionProxy</code> to demonstrate the concept. The key idea is:</p>
+<ul>
+<li>When calling <code>$participants-&gt;filter-&gt;belongsToTeam(2)</code>, the proxy class's <code>__call()</code> magic method is triggered. This method then invokes the <code>filter</code> method on the collection, passing a callback that calls <code>belongsToTeam(2)</code> on each item in the collection.</li>
+<li>Similarly, when calling <code>$team2Participants-&gt;sum-&gt;score</code>, the proxy class's <code>__get()</code> magic method is triggered. This retrieves the <code>score</code> property from each item in the collection before summing the values.</li>
+</ul>
+<pre class="language-php"><code>// Higher Order Messages
+
+$team2Participants = $participants-&gt;filter-&gt;belongsToTeam(2);
+
+$totalScore = $team2Participants-&gt;sum-&gt;score;
+
+// chaining
+$currentYearAmount = $participants-&gt;filter-&gt;belongsToTeam(2)-&gt;sum-&gt;score;</code></pre>
+<h3>Conclusion</h3>
+<p>With this approach, we’ve successfully replicated Laravel’s Higher-Order Messaging in vanilla PHP. Surprisingly, it was easier than expected, proving that true ingenuity lies in simplicity.</p>
+<p>You can find the complete code in this <a href="https://gist.github.com/enxas/d439384b8ce44a7cadc77313dd5af7dc" target="_blank" rel="noopener noreferrer">GitHub Gist</a>.</p>
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>How to Insert 1 Million Records Lightning-Fast</title>
         <author>
