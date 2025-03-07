@@ -3,7 +3,7 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2025-03-07T17:17:43+02:00</updated>
+    <updated>2025-03-07T17:21:14+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
@@ -207,7 +207,7 @@ var_dump([$elapsedTime1, $elapsedTime2, $total1, $total2]);</code></pre>
 }
 </code></pre>
 <p>The async version took around <strong>7 seconds</strong>, while the synchronous version took <strong>32 seconds</strong>. The computed results are identical, showing a significant performance boost.</p>
-<p>In the process, I created a small library named <strong>Pumice</strong>. The source code is available on my <a href="https://github.com/enxas/pumice" target="_blank" rel="noopener noreferrer">GitHub</a>. This was a challenging but rewarding project, proving that PHP can achieve parallel processing with built-in features.</p>
+<p>In the process, I created a small library named <strong>Pumice</strong>. The source code is available on <a href="https://github.com/enxas/pumice" target="_blank" rel="noopener noreferrer">GitHub</a>. This was a challenging but rewarding project, proving that PHP can achieve parallel processing with built-in features.</p>
             ]]>
         </content>
     </entry>
