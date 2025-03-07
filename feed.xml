@@ -3,12 +3,214 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2025-02-02T15:32:48+02:00</updated>
+    <updated>2025-03-07T17:17:43+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
     <id>https://phpmemo.com</id>
 
+    <entry>
+        <title>Building My Own Async PHP</title>
+        <author>
+            <name>Enxas</name>
+        </author>
+        <link href="https://phpmemo.com/making-my-own-async-php.html"/>
+        <id>https://phpmemo.com/making-my-own-async-php.html</id>
+            <category term="PHP"/>
+
+        <updated>2025-03-07T16:54:27+02:00</updated>
+            <summary>
+                <![CDATA[
+                    A lot of what I do involves data processing. I retrieve resources like database records or files, then iterate through each one to process it.
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <p>A lot of what I do involves data processing. I retrieve resources like database records or files, then iterate through each one to process it. The biggest problem I run into is performance due to the sheer amount of data that needs processing. Since PHP runs on a single thread, if I need to process a million records, PHP has to go through each one sequentially. However, modern computers are capable of executing multiple tasks simultaneously, so can PHP leverage that hardware to process data in parallel?</p>
+<h2>Existing Solutions</h2>
+<p>There are many libraries and frameworks that help achieve asynchronous PHP, such as Swoole, ReactPHP, and Amp, as well as extensions like PThreads and Parallel. However, my goal was to use native PHP features without additional dependencies while still being able to receive data after it has been processed. This left me with the following options:</p>
+<ul>
+<li><strong>pcntl_fork</strong> - Requires the Process Control extension and does not work on non-Unix systems.</li>
+<li><strong>stream_socket_server</strong> - Requires creating a server, which seems excessive.</li>
+<li><strong>shell_exec() or exec()</strong> - Cannot capture real-time output.</li>
+<li><strong>proc_open()</strong> - Does not require extensions, can capture output in real-time, and is lightweight.</li>
+</ul>
+<p>I decided to go with <code>proc_open()</code>. In a serious application, you would likely use existing solutions, but this was an experiment to see how close I could get to async PHP using built-in features.</p>
+<h2>Building Blocks</h2>
+<p>These are the key functions that enable us to implement something resembling async PHP:</p>
+<ul>
+<li><strong>proc_open</strong> - Starts an external process and allows interaction via pipes (stdin, stdout, stderr).</li>
+<li><strong>stream_set_blocking</strong> - Sets a stream to blocking or non-blocking mode, allowing us to avoid execution being halted while waiting for input.</li>
+<li><strong>stream_select</strong> - Monitors multiple streams for readability, writability, or errors, making it useful for handling multiple socket connections or non-blocking I/O.</li>
+<li><strong>stream_get_contents</strong> - Reads the full content from a stream, useful for reading from pipes, sockets, or remote connections.</li>
+</ul>
+<h2>The Plan</h2>
+<p>The library should be able to take in tasks (callables) and process each one in a separate process so they do not block each other. If I have 1000 tasks, I should not have all 1000 running simultaneously, as too much time would be spent on context switching. Instead, the number of active tasks should be limited — ideally, to match the available CPU threads. Data from each process should be retrieved as soon as it becomes available, and when a process ends, another should take its place to ensure that the maximum number of allowed processes is always working on tasks.</p>
+<h2>Execution</h2>
+<p>I liked the API of the Spatie Async library, so I decided to mimic it. In the example below, 15 tasks are created and executed in parallel, with their results summed up:</p>
+<pre class="language-php"><code>use Enxas\Pumice;
+
+$pumice = Pumice::create();
+$total = 0;
+
+for ($i = 0; $i &lt; 15; $i++) {
+	$pumice
+		-&gt;add([new StuffCalculator, 'calculate'])
+		-&gt;then(function (mixed $output) use (&amp;$total) {
+			$total += $output;
+		})-&gt;catch(function (Throwable $exception) {
+			echo "Error: {$exception-&gt;getMessage()}\n";
+		});
+}
+
+$pumice-&gt;wait();
+
+echo $total;</code></pre>
+<p>If no maximum number of concurrent processes is provided, then the available thread count is used:</p>
+<pre class="language-php"><code>private function getProcessorCores(): int
+{
+	return (int) match (PHP_OS_FAMILY) {
+		'Windows' =&gt; shell_exec('echo %NUMBER_OF_PROCESSORS%'),
+		'Linux' =&gt; shell_exec('nproc'),
+		'Darwin' =&gt; shell_exec('sysctl -n hw.ncpu'), // MacOS
+		default =&gt; 8,
+	};
+}</code></pre>
+<p>Since tasks are objects and PHP does not allow passing objects as command-line arguments, I serialize and base64 encode the object before passing it to a separate worker process. Once the process is created, I interact with it through stdin, stdout, and stderr pipes, setting those pipes to non-blocking mode to prevent blocking other processes.</p>
+<pre class="language-php"><code>$serializedTask = base64_encode(serialize($task));
+$cmd = ["php", "-f", __DIR__ . "/worker.php", $serializedTask];
+
+$process = proc_open($cmd, $this-&gt;descriptorSpec, $this-&gt;pipes[$index]);
+
+if (is_resource($process)) {
+	stream_set_blocking($this-&gt;pipes[$index][self::STDOUT], false);
+	stream_set_blocking($this-&gt;pipes[$index][self::STDERR], false);
+
+	$this-&gt;processes[$index] = $process;
+}</code></pre>
+<p>The <code>worker.php</code> script is straightforward. It decodes and unserializes the received command-line argument (the task object), executes the callable, and then returns the serialized and encoded response back to the main process.</p>
+<pre class="language-php"><code>if ($argc &gt;= 2) {
+	try {
+		$task = unserialize(base64_decode($argv[1]));
+
+		if (!is_callable($task)) {
+			throw new Exception("Task is not callable.");
+		}
+
+		// Execute task
+		$output = $task();
+
+		// Wrap successful output
+		$response = [
+			'status' =&gt; 'success',
+			'data'   =&gt; $output
+		];
+	} catch (Throwable $e) {
+		// Wrap error output
+		$response = [
+			'status'  =&gt; 'error',
+			'message' =&gt; $e-&gt;getMessage()
+		];
+	}
+
+	// Always return a structured response
+	echo base64_encode(serialize($response));
+
+	flush();
+}</code></pre>
+<h2>The Main Logic</h2>
+<p>The core logic happens in the <code>wait()</code> function. It starts an initial batch of tasks, ensuring that no more than the allowed number of tasks run at the same time. As each task completes, a new one starts to maintain the limit.</p>
+<pre class="language-php"><code>// Start a batch of $maxConcurrent tasks
+while (count($this-&gt;processes) &lt; $this-&gt;maxConcurrent &amp;&amp; $this-&gt;taskIndex &lt; count($this-&gt;tasks)) {
+	$this-&gt;startNewTask();
+}</code></pre>
+<p>We monitor the output pipes of the running processes. <code>stream_select()</code> blocks execution until at least one process has data available:</p>
+<pre class="language-php"><code>$readStreams = array_map(fn($pipes) =&gt; $pipes[self::STDOUT], $this-&gt;pipes);
+$writeStreams = null;
+$exceptStreams = null;
+
+// Wait until one or more streams are ready to read
+if (stream_select($readStreams, $writeStreams, $exceptStreams, null) &gt; 0) {</code></pre>
+<p>When output is available, we retrieve, decode, and deserialize it:</p>
+<pre class="language-php"><code>foreach ($this-&gt;processes as $i =&gt; $process) {
+	if (in_array($this-&gt;pipes[$i][self::STDOUT], $readStreams, true)) {
+		$encodedOutput = stream_get_contents($this-&gt;pipes[$i][self::STDOUT]);
+
+		if ($encodedOutput !== false &amp;&amp; $encodedOutput !== '') {
+			$output = unserialize(base64_decode($encodedOutput));</code></pre>
+<p>Finally, we call the success or error callbacks with the resulting data:</p>
+<pre class="language-php"><code>// Handle success/failure callbacks
+if (isset($output['status']) &amp;&amp; $output['status'] === 'error') {
+	if ($this-&gt;callbacks[$i]['catch']) {
+		call_user_func($this-&gt;callbacks[$i]['catch'], new \Exception($output['message']));
+	}
+} elseif ($this-&gt;callbacks[$i]['then']) {
+	call_user_func($this-&gt;callbacks[$i]['then'], $output['data']);
+}</code></pre>
+<h2>The Result</h2>
+<p>Let's test the performance improvement by comparing async execution with synchronous execution. First lets create a worker class.</p>
+<pre class="language-php"><code>&lt;?php
+
+namespace App\Workers;
+
+class StuffCalculator
+{
+	public function calculate(): float
+    {
+		$result = 0;
+
+        for ($i = 0; $i &lt; 10_000_000; $i++) {
+            $result += sqrt($i) * log($i + 1) * sin($i) * cos($i) * exp($i % 10);
+        }
+
+		return $result;
+    }
+}
+</code></pre>
+<p>Then measure time how long it takes to complete 15 tasks between sync and async versions.</p>
+<pre class="language-php"><code>$startTime1 = microtime(true);
+
+$pumice = Pumice::create();
+$total1 = 0;
+
+for ($i = 0; $i &lt; 15; $i++) {
+	$pumice
+		-&gt;add([new StuffCalculator, 'calculate'])
+		-&gt;then(function (mixed $output) use (&amp;$total1) {
+			$total1 += $output;
+		})-&gt;catch(function (Throwable $exception) {
+			echo "Error: {$exception-&gt;getMessage()}\n";
+		});
+}
+
+$pumice-&gt;wait();
+
+$elapsedTime1 = (microtime(true) - $startTime1) * 1000;
+
+$startTime2 = microtime(true);
+
+$total2 = 0;
+for ($i = 0; $i &lt; 15; $i++) {
+	$total2 += (new StuffCalculator)-&gt;calculate();
+}
+
+$elapsedTime2 = (microtime(true) - $startTime2) * 1000;
+
+
+var_dump([$elapsedTime1, $elapsedTime2, $total1, $total2]);</code></pre>
+<p>Results:</p>
+<pre><code>array(4) {
+  [0]=&gt; float(7125.4589557647705)
+  [1]=&gt; float(32699.30911064148)
+  [2]=&gt; float(2001088973.8368132)
+  [3]=&gt; float(2001088973.8368132)
+}
+</code></pre>
+<p>The async version took around <strong>7 seconds</strong>, while the synchronous version took <strong>32 seconds</strong>. The computed results are identical, showing a significant performance boost.</p>
+<p>In the process, I created a small library named <strong>Pumice</strong>. The source code is available on my <a href="https://github.com/enxas/pumice" target="_blank" rel="noopener noreferrer">GitHub</a>. This was a challenging but rewarding project, proving that PHP can achieve parallel processing with built-in features.</p>
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>Demystifying Laravel&#x27;s Higher Order Messaging</title>
         <author>
