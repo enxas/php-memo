@@ -3,12 +3,117 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2025-03-07T17:21:14+02:00</updated>
+    <updated>2025-03-24T10:12:01+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
     <id>https://phpmemo.com</id>
 
+    <entry>
+        <title>Using PHP as a (Terrible) Video Player</title>
+        <author>
+            <name>Enxas</name>
+        </author>
+        <link href="https://phpmemo.com/using-php-as-a-terrible-video-player.html"/>
+        <id>https://phpmemo.com/using-php-as-a-terrible-video-player.html</id>
+            <category term="PHP"/>
+
+        <updated>2025-03-22T14:57:27+02:00</updated>
+            <summary>
+                <![CDATA[
+                    While browsing a forum, I noticed an ASCII art image, which made me wonder how such images are created. It turns out that the process&hellip;
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <p>While browsing a forum, I noticed an ASCII art image, which made me wonder how such images are created. It turns out that the process is quite simple. All that is required is to iterate through an image’s pixels and replace them with ASCII characters. Darker pixels are replaced with characters that appear larger, while lighter pixels are replaced with smaller characters, such as a dot.</p>
+<p>That led me to another thought: since a video is just a sequence of frames (images), could I encode every frame of a video into ASCII characters, effectively turning the video into an ASCII animation? And how difficult would that be to accomplish?</p>
+<h3>Extracting Frames from a Video</h3>
+<p>The first step is figuring out how to read a video frame by frame. I know PHP has built-in methods to read pixel data from an image, but how can I decode frames from a video? Apparently, PHP does not have libraries for video decoding by default, so I decided to use a popular encoding/decoding tool named <strong><a href="https://www.ffmpeg.org/" target="_blank" rel="noopener noreferrer">FFmpeg</a></strong>.</p>
+<p>The idea is to use FFmpeg to decode the video frame by frame, then pass those frames to a PHP application. The application will iterate over each pixel of a frame and replace it with an ASCII character. The resulting ASCII frames can then be displayed in the terminal or saved to a file for later viewing.</p>
+<h3>Using FFmpeg to Retrieve Frames</h3>
+<p>Let’s start by constructing an FFmpeg command with arguments to extract frames one by one. The most important flags include:</p>
+<ul>
+<li><strong>Hardware acceleration</strong> (depending on the operating system)</li>
+<li><strong>Grayscale conversion</strong>, since we are not displaying colors in the terminal, which simplifies choosing the appropriate ASCII characters</li>
+<li><strong>Frame encoding as PNG images</strong>, since PNG is lossless and maintains the necessary details</li>
+</ul>
+<p>FFmpeg uses <strong>stdout</strong> to return frame data and <strong>stderr</strong> to print encoding status. The <code>-loglevel error</code> flag ensures that only errors are printed to the error stream, as the status messages are not needed.</p>
+<pre class="language-php"><code>$hwaccel = match (true) {
+	stristr(PHP_OS, 'linux') =&gt; " -hwaccel vaapi -vaapi_device /dev/dri/renderD128 ",
+	stristr(PHP_OS, 'darwin') =&gt; " -hwaccel videotoolbox ",
+	stristr(PHP_OS, 'win') =&gt; " -hwaccel dxva2 ",
+	default =&gt; "",
+};
+
+return "\"$this-&gt;ffmpegPath\" $hwaccel -i " . escapeshellarg($videoPath) .
+	" -vf \"fps={$settings['framerate']},scale={$settings['resolution']},format=gray\" " .
+	" -fflags nobuffer -loglevel error -flush_packets 1 -update 1 " .
+	" -f image2pipe -pix_fmt gray -vcodec png -";</code></pre>
+<h3>Processing Frames in PHP</h3>
+<p>Now, let’s start the FFmpeg process with the built command and open pipes to receive frame data from the FFmpeg process.</p>
+<pre class="language-php"><code>$process = proc_open($cmd, [
+	0 =&gt; ["pipe", "r"],
+	1 =&gt; ["pipe", "w"],
+	2 =&gt; ["pipe", "w"]
+], $pipes);</code></pre>
+<p>Next, we read from <code>$pipes[1]</code>, which corresponds to <strong>STDOUT</strong>. This is where the PNG-encoded frame data is received from the FFmpeg process. Since we might receive only a portion of a frame at a time, we accumulate chunks of data into a buffer. Once the buffer contains a complete PNG image, it is passed for further processing.</p>
+<pre class="language-php"><code>$buffer = '';
+
+// Process each frame
+while (true) {
+	$status = proc_get_status($process);
+	if (!$status['running'] &amp;&amp; feof($pipes[1])) {
+		break;
+	}
+
+	// Read data from FFmpeg output
+	if (($chunk = fread($pipes[1], 4096)) !== false &amp;&amp; $chunk !== '') {
+		$buffer .= $chunk;
+	}
+
+	// Process complete PNG images in the buffer
+	$buffer = $this-&gt;processFrames($buffer, $frameCallback);
+}</code></pre>
+<h3>Converting Frames to ASCII</h3>
+<p>This is the heart of the application. The accumulated PNG buffer is turned into a <strong>GdImage</strong> object, which PHP can use to access pixel data. Instead of iterating over every single pixel, we divide the image into horizontal and vertical blocks. Each block’s brightness is determined by sampling the pixel at its center. Since ASCII characters are larger than pixels, this approach provides a reasonable approximation of the image.</p>
+<p>We then map the brightness value to a corresponding character from a predefined <strong>grayscale ASCII character set</strong>. The process continues line by line until the entire frame is converted into ASCII characters.</p>
+<pre class="language-php"><code>$grayCharacters = "$@B%8&amp;WM#*+=-:. "; // ASCII gradient from dark to light
+$image = @imagecreatefromstring($frameData);
+
+$asciiFrame = [];
+
+for ($y = 0; $y &lt; $newHeight; $y++) {
+	$row = '';
+	$baseY = $y * $this-&gt;widthSubsample;
+
+	for ($x = 0; $x &lt; $newWidth; $x++) {
+		$baseX = $x * $this-&gt;heightSubsample;
+
+		// Sample center pixel for each block
+		$sampleX = min($baseX + intdiv($this-&gt;heightSubsample, 2), $width - 1);
+		$sampleY = min($baseY + intdiv($this-&gt;widthSubsample, 2), $height - 1);
+
+		$grayValue = imagecolorat($image, $sampleX, $sampleY);
+		// Map color value to ASCII character
+		$index = (int) ceil((strlen($grayCharacters) - 1) * $grayValue / 255);
+		$row .= $grayCharacters[$index];
+	}
+
+	$asciiFrame[] = $row;
+}</code></pre>
+<h3>Storing and Displaying ASCII Frames</h3>
+<p>Once an ASCII frame is generated, it can be displayed in the terminal or saved to a file. To make the ASCII video file smaller, I used PHP’s <code>gzcompress</code> function to compress frame data.</p>
+<pre class="language-php"><code>$compressed = gzcompress($asciiFrame);
+fwrite($file, base64_encode($compressed) . "\n");</code></pre>
+<h3>Results and Conclusion</h3>
+<figure class="post__image post__image--center"><img loading="lazy"  src="https://phpmemo.com/media/posts/10/WindowsTerminal_Hi7kO7jpGA-2.gif" alt="ASCII Movie Example" width="1920" height="1042"></figure>
+<p>To test compression and playback, I used the open-source animated movie <strong><a href="https://peach.blender.org/download/" target="_blank" rel="noopener noreferrer">Big Buck Bunny</a></strong>. The original <strong>691 MB</strong> video file was compressed into a <strong>52 MB</strong> ASCII movie file. Playback worked without any issues — I only needed to reduce the terminal font size using <code>Ctrl</code> + <code>-</code> to fit more details on the screen.</p>
+<p>During this project, I also developed a PHP library named <strong>Scoria</strong> for ASCII video encoding, decoding, and playback. You can find the code on <strong><a href="https://github.com/enxas/scoria" target="_blank" rel="noopener noreferrer">GitHub</a></strong>.</p>
+<p>While I can’t imagine watching ASCII movies regularly, this was a fun and unusual project to experiment with!</p>
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>Building My Own Async PHP</title>
         <author>
