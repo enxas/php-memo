@@ -3,7 +3,7 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2025-03-24T10:12:01+02:00</updated>
+    <updated>2025-03-24T11:30:13+02:00</updated>
     <author>
         <name>Enxas</name>
     </author>
@@ -46,7 +46,7 @@
 	default =&gt; "",
 };
 
-return "\"$this-&gt;ffmpegPath\" $hwaccel -i " . escapeshellarg($videoPath) .
+$cmd = "\"$this-&gt;ffmpegPath\" $hwaccel -i " . escapeshellarg($videoPath) .
 	" -vf \"fps={$settings['framerate']},scale={$settings['resolution']},format=gray\" " .
 	" -fflags nobuffer -loglevel error -flush_packets 1 -update 1 " .
 	" -f image2pipe -pix_fmt gray -vcodec png -";</code></pre>
