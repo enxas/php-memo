@@ -3,12 +3,201 @@
     <title>PHPMemo</title>
     <link href="https://phpmemo.com/feed.xml" rel="self" />
     <link href="https://phpmemo.com" />
-    <updated>2025-03-24T11:30:13+02:00</updated>
+    <updated>2025-05-15T08:52:36+03:00</updated>
     <author>
         <name>Enxas</name>
     </author>
     <id>https://phpmemo.com</id>
 
+    <entry>
+        <title>Building a Minimal Single Sign-On (SSO) System from Scratch</title>
+        <author>
+            <name>Enxas</name>
+        </author>
+        <link href="https://phpmemo.com/building-minimal-single-sign-on-sso-system-from-scratch.html"/>
+        <id>https://phpmemo.com/building-minimal-single-sign-on-sso-system-from-scratch.html</id>
+            <category term="PHP"/>
+            <category term="Auth"/>
+
+        <updated>2025-05-14T22:23:44+03:00</updated>
+            <summary>
+                <![CDATA[
+                    Imagine you own a successful e-commerce website that sells audio equipment, serving millions of users. One day, your business analyst suggests that music streaming is&hellip;
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <p>Imagine you own a successful e-commerce website that sells audio equipment, serving millions of users. One day, your business analyst suggests that music streaming is predicted to be the next big thing, and you should invest in it immediately. Excited by the opportunity, you create a new website. However, there is one issue: users must create a new account even though they already have one with your company.</p>
+<p>To enhance user experience and prevent duplicate accounts, we need a centralized system for identity management. This system would allow users to create a single account and use it to log in across multiple websites under your brand. Several technologies can enable this, but in this blog post, I’ll explore Single Sign-On (SSO) and build a minimal example from scratch.</p>
+<p><strong>Note: The code provided is intended for learning and exploration purposes only and should not be used in production as-is.</strong></p>
+<p>After doing some Google-fu on auth systems, I found this blog post: "<a href="https://sandeep.dev/blog/how-hashnode-implements-sso-for-blogs-running-on-custom-domains" target="_blank" rel="noopener noreferrer">How Hashnode implements SSO for blogs running on custom domains</a>" which I really liked. It’s a minimal approach to enterprise and corporate solutions, which I prefer. So my SSO system is going to be inspired by that blog post.</p>
+<p>We want to have one system where the user authenticates, and other related websites can use that authentication token to authenticate the user on their end. But there is a problem: browsers implement the Same-Origin Policy. It’s a security measure enforced by modern web browsers that prevents a website from accessing cookies or resources from a different origin (i.e., a different website).</p>
+<p>This ensures that only the website that created the cookie can read or modify it, preventing malicious sites from stealing session data or performing unauthorized actions on behalf of users.</p>
+<p> </p>
+<p>Here’s how we work around this limitation from the technical side:</p>
+<ol>
+<li>
+<p>User visits our e-commerce website, let's say <em>http://website-a.local</em>.</p>
+</li>
+<li>
+<p>They click the Login button and get redirected to our Identity Provider website. We also attach a "redirect" URL parameter so that after authentication, the system knows where to return the user.</p>
+</li>
+<li>
+<p>When the user authenticates, we set an auth JWT-encoded cookie on the Identity Provider side to know that the user is authenticated. So when they get redirected to the Identity Provider again, they won’t need to re-enter their credentials, and the Identity Provider server will be able to redirect them back immediately.<br>Then we create an auth JWT and some unique value that only the client will know. We save that UUID and JWT key-value pair to temporary storage on the server. Once that is done, we can send the user back where they came from, but this time we attach that unique value (UUID) to the URL parameter.</p>
+</li>
+<li>
+<p>Once the user is back on <em>http://website-a.local</em>, the website checks for the UUID URL parameter. If it finds it, it sends a request to the Identity Provider server with that UUID to retrieve the actual JWT.</p>
+</li>
+<li>
+<p>The Identity Provider returns a signed JWT as the request payload. The JWT is then stored as a cookie so <em>http://website-a.local</em> can now access it from cookie storage.</p>
+</li>
+</ol>
+<p data-start="106" data-end="154"> </p>
+<p class="" data-start="106" data-end="154">Here’s how it looks from the user's perspective:</p>
+<ol data-start="156" data-end="702">
+<li class="" data-start="156" data-end="230">
+<p class="" data-start="159" data-end="230">User visits our e-commerce website, let's say <em>http://website-a.local</em>.</p>
+</li>
+<li class="" data-start="231" data-end="339">
+<p class="" data-start="234" data-end="339">They click the <strong data-start="249" data-end="258">Login</strong> button and get redirected to the login form on <em>http://identity-provider.local</em>.</p>
+</li>
+<li class="" data-start="340" data-end="454">
+<p class="" data-start="343" data-end="454">They enter their credentials, click <strong data-start="379" data-end="388">Login</strong>, and get redirected to the dashboard on <em>http://website-a.local</em>.</p>
+</li>
+<li class="" data-start="455" data-end="526">
+<p class="" data-start="458" data-end="526">The user then goes to our other website at <em>http://website-b.local</em>.</p>
+</li>
+<li class="" data-start="527" data-end="702">
+<p class="" data-start="530" data-end="702">They click the <strong data-start="545" data-end="554">Login</strong> button and are redirected to the dashboard without having to provide credentials, because they’ve already authenticated with the Identity Provider.</p>
+</li>
+</ol>
+<p> </p>
+<p>Let’s begin by implementing this from the e-commerce store website.</p>
+<p>If we have "uuid" as a URL parameter, then use that value to exchange it for a JWT from the Identity Provider, and once the JWT is received, redirect to the user dashboard.</p>
+<pre class="language-php"><code>if (isset($_GET["uuid"])) {
+	exchangeUUIDForJWT($_GET["uuid"]);
+	header("Location: http://website-a.local:9001/dashboard");
+}</code></pre>
+<p>The <code>exchangeUUIDForJWT</code> function does the work of sending the UUID to the Identity Provider, retrieving the JWT, and setting it as a cookie so the e-commerce website can access it.</p>
+<pre class="language-php"><code>function exchangeUUIDForJWT(string $uuid): void
+{
+	$url = "http://identity-provider.local:9000/jwt?uuid=" . $uuid;
+
+	$ch = curl_init($url);
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($ch, CURLOPT_HEADER, true);
+
+	$response = curl_exec($ch);
+	$headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+	curl_close($ch);
+
+	$jwt = substr($response, $headerSize);
+
+	setcookie("jwt_auth", $jwt, time() + 3600, "/");
+}</code></pre>
+<p>If the route is empty, then show the index page with links to login (which redirects to the Identity Provider website) and the dashboard:</p>
+<pre class="language-php"><code>} else if (empty($route)) {
+	echo &lt;&lt;&lt;HTML
+	&lt;h2 style="color: red"&gt;Website A&lt;/h2&gt;
+	&lt;h3&gt;Login to access your &lt;a href="/dashboard"&gt;Dashboard&lt;/a&gt;&lt;/h3&gt;
+	&lt;a href="http://identity-provider.local:9000/?redirect=$encodedUrl"&gt;Login&lt;/a&gt;
+	HTML;
+}</code></pre>
+<p>If the route is "dashboard", then check if the user has a valid JWT cookie and allow access to the dashboard:</p>
+<pre class="language-php"><code>} else if ($route === "dashboard") {
+	if (isset($_COOKIE["jwt_auth"]) &amp;&amp; verifyJWT($_COOKIE["jwt_auth"], $publicKeyPath)) {
+		$payload = getJWTPayload($_COOKIE["jwt_auth"]);
+
+		echo "&lt;h2 style='color: red'&gt; Website A Dashboard &lt;/h2&gt;";
+		echo "&lt;h3&gt; Welcome " . $payload["name"] . " (" . $payload["email"] . ") &lt;/h3&gt;";
+	} else {
+		echo "&lt;p&gt; You must be authenticated to access this page. &lt;/p&gt;";
+	}
+}</code></pre>
+<p>Now let’s look into the Identity Provider code.</p>
+<p>If the login form is submitted, check if the user is in the database and authenticate them if they exist.</p>
+<pre class="language-php"><code>if ($_SERVER["REQUEST_METHOD"] == "POST") {
+	$email = $_POST["email"] ?? "";
+	$password = $_POST["password"] ?? "";
+
+	if ($email === $databaseUser["email"] &amp;&amp; $password === $databaseUser["password"]) {
+		authenticate($databaseUser, $keyValueStore, $privateKeyPath);
+	} else {
+		$error = "Invalid email or password.";
+	}
+} </code></pre>
+<p>The <code>authenticate()</code> function creates a cookie on the Identity Provider to remember that the user is authenticated, so it doesn't ask for credentials again. It also creates a JWT and stores it temporarily so the client can claim it from the e-commerce website. After successful authentication, the user is redirected back with the UUID to claim the JWT later.</p>
+<pre class="language-php"><code>function authenticate(array $user, string $keyValueStore, string $privateKeyPath): void
+{
+	$uuid = uniqid();
+
+	// Save JWT for external site to claim.
+	$payload = [
+		"id" =&gt; $user["id"],
+		"name" =&gt; $user["name"],
+		"email" =&gt; $user["email"],
+		"iat" =&gt; time(),
+		"exp" =&gt; time() + 3600 // Expires in 1 hour
+	];
+
+	$jwt = generateJWT($payload, $privateKeyPath);
+	saveJWTTemporarily($jwt, $uuid, $keyValueStore);
+
+
+	// Save separate cookie on Identity Provider to know that user is authenticated.
+	$cookieData = [
+		"id" =&gt; $user["id"],
+		"exp" =&gt; time() + 3600, // Expires in 1 hour
+	];
+
+	$cookieJWT = generateJWT($cookieData, $privateKeyPath);
+	setcookie("jwt_login", $cookieJWT, time() + 3600, "/");
+
+	// Redirect back to external site with "uuid".
+	if (isset($_GET["redirect"])) {
+		header("Location: " . $_GET["redirect"] . "?" . http_build_query(["uuid" =&gt; $uuid]));
+		exit;
+	}
+}</code></pre>
+<p>When the route is empty, show the login form. If the user is already authenticated, redirect them back without asking for credentials:</p>
+<pre class="language-php"><code>if (empty($route)) {
+	if (isset($_COOKIE["jwt_login"]) &amp;&amp; verifyJWT($_COOKIE["jwt_login"], $publicKeyPath)) {
+		$data = getJWTPayload($_COOKIE["jwt_login"]);
+
+		if ($data["id"] === $databaseUser["id"] &amp;&amp; $data["exp"] &gt; time()) {
+			echo "You're Authenticated!";
+			// If user is already authenticated with Identity Provider, then generate new JWT and send them back with "uuid".
+			authenticate($databaseUser, $keyValueStore, $privateKeyPath);
+		};
+	}
+
+	$email = $databaseUser["email"];
+	$password = $databaseUser["password"];
+
+	echo &lt;&lt;&lt;HTML
+	&lt;h2&gt;Identity Provider&lt;/h2&gt;
+
+	&lt;form action="" method="POST"&gt;
+		&lt;input type="email" name="email" placeholder="Email" value="$email" required&gt;
+		&lt;input type="password" name="password" placeholder="Password" value="$password" required&gt;
+		&lt;button type="submit"&gt;Login&lt;/button&gt;
+	&lt;/form&gt;
+	HTML;
+
+	if (!empty($error)) {
+		echo "&lt;p&gt;$error&lt;/p&gt;";
+	}
+}</code></pre>
+<p>When the client hits the "jwt" endpoint, it means they want to exchange the UUID for the JWT:</p>
+<pre class="language-php"><code>} else if ($route === "jwt") {
+	$existingData = file_exists($keyValueStore) ? json_decode(file_get_contents($keyValueStore), true) : [];
+	echo $existingData[$_GET["uuid"]];
+	exit;
+}</code></pre>
+<p>And that’s the basic idea. I really like how simple and minimal it turned out. The code provided isn't the cleanest, but its purpose is to stay simple and easy to understand. Other things to consider would be logout and refresh token flow. You can find the full code on my <a href="https://github.com/enxas/single-sign-on-example" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>Using PHP as a (Terrible) Video Player</title>
         <author>
